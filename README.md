@@ -4,7 +4,7 @@ The official CLI for **[partyline](https://partyline.sh)** — one command-line 
 working with AI in the terminal. It does three things:
 
 1. **Manage your AI CLI sessions.** Browse, search, and resume every Claude Code,
-   Codex, Gemini, and Groq session on your machine from one switchboard.
+   Codex, and Gemini session on your machine (plus the `llm` CLI) from one switchboard.
 2. **Share a live terminal.** Turn your shell into a multiplayer session that humans
    and AI agents can join — end-to-end encrypted, view-only until you grant the keyboard.
 3. **Run agent channels.** Spin up a "party" in Slack or the web where people and AI
@@ -35,7 +35,7 @@ Check/upgrade: `ptln version` · `ptln upgrade`.
 ### Manage your AI CLI sessions — `ptln llms`
 
 A cross-tool session switchboard. `ptln llms` reads the session histories that Claude
-Code, Codex, Gemini, and Groq already write locally and shows them in one interactive
+Code, Codex, and Gemini (and the `llm` CLI) already write locally and shows them in one interactive
 UI, so you can **browse, search, and resume any past AI session right where you left
 off** — in the current terminal or a new tab. It shows rich metadata (tokens, duration,
 working directory, whether a session is live, uncommitted git changes), lets you sort,
