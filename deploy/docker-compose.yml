@@ -1,0 +1,37 @@
+# Production stack for the Hetzner box (/opt/partyline). Source is rsync'd to ./src by CI;
+# web + relay build on the box. Runtime secrets live in /opt/partyline/.env (set once on the
+# box, never in git or CI). NEXT_PUBLIC_* are public, interpolated from that .env at build.
+services:
+  web:
+    build:
+      context: ./src/web
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    env_file: ./.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    restart: unless-stopped
+    expose: ["3000"]
+    depends_on: [redis]
+  relay:
+    build:
+      context: ./src
+      dockerfile: relay/Dockerfile
+    env_file: ./.env
+    restart: unless-stopped
+    ports: ["2222:2222"] # raw TCP (ssh code@pppp.sh -p 2222); host sshd owns :22
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  caddy_data:
+  caddy_config:
