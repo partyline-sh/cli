@@ -1,0 +1,97 @@
+# .goreleaser.yaml — builds, signs+notarizes (macOS), and publishes the partyline
+# CLI to GitHub Releases + a Homebrew tap.
+#
+# Runs on the self-hosted mac-mini runner: partyline is pure Go (no cgo), so one
+# macOS host cross-compiles every target AND does the Apple notarization.
+# Apple signing/notarization use goreleaser's native quill integration (no Xcode).
+version: 2
+
+project_name: partyline
+
+builds:
+  - id: partyline
+    main: .
+    binary: partyline
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+# Sign + notarize the macOS binaries with Apple. `enabled` is gated on the signing
+# secret so local/dry runs (and forks without the cert) still build cleanly.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids: [partyline]
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"        # base64 of the Developer ID Application .p12
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"      # .p12 export password
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"  # App Store Connect API issuer id (UUID)
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"        # API key id
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"              # base64 of the AuthKey_XXXX.p8
+        wait: true
+        timeout: 20m
+
+archives:
+  - id: partyline
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - src: docs/partyline.1 # bundle the man page so `ptln man --raw`'d install + packagers find it
+        dst: partyline.1
+
+# Linux native packages (.deb / .rpm) for users who'd rather not curl|sh. Attached
+# to the GitHub release + folded into checksums.txt (so they're verifiable too).
+# No hosted apt/yum repo — these are download-and-install package FILES. Linux has
+# no Gatekeeper, so no binary signing is needed to run them.
+nfpms:
+  - id: partyline
+    ids: [partyline]
+    package_name: partyline
+    formats: [deb, rpm]
+    maintainer: "partyline <hello@partyline.sh>"
+    homepage: "https://partyline.sh"
+    description: "Multiplayer, end-to-end-encrypted terminal sessions for humans and AI agents."
+    license: "Proprietary"
+    bindir: /usr/bin
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    contents:
+      - src: docs/partyline.1 # so `man partyline` works after a deb/rpm install
+        dst: /usr/share/man/man1/partyline.1
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  # Source repo (darcyreno/partyline) stays private; releases are published to a
+  # dedicated PUBLIC repo so curl|sh + brew can fetch the assets. Needs a token
+  # with contents:write on this repo (we pass GORELEASER_TOKEN as GITHUB_TOKEN).
+  github:
+    owner: partyline-sh
+    name: cli
+  draft: false
+  prerelease: auto
+  # Idempotent re-runs: if a prior attempt created the release but a transient GitHub
+  # upload failure left it incomplete, replace it instead of erroring "already exists".
+  # This is what lets the workflow's retry loop recover a half-finished publish.
+  mode: replace
+
+# Homebrew tap (cask — the modern path for prebuilt, signed binaries; macOS-only,
+# Linux users use the curl|sh installer). Users install with:
+#   brew install partyline/tap/partyline
+# (Change repository.owner to `darcyreno` if you don't create the `partyline` org.)
+homebrew_casks:
+  - name: partyline
+    repository:
+      owner: partyline-sh
+      name: homebrew-tap
+      token: "{{ .Env.GORELEASER_TOKEN }}"
+    homepage: "https://partyline.sh"
+    description: "One shared terminal, everyone on the line — multiplayer, encrypted terminal sessions for humans and AI agents."
+    # `ptln` short alias → the same binary (the command shown everywhere in docs/help).
+    custom_block: |
+      binary "partyline", target: "ptln"
