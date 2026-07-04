@@ -1,0 +1,10 @@
+# Partyline crank dogfood backlog — one clear, isolated task per line.
+# Each non-comment line is fed VERBATIM as the prompt to a fresh `claude -p` running in its
+# own git worktree; it leaves a reviewable branch you merge (or discard). Keep tasks small,
+# specific, and independently verifiable. Blank lines and #-comments are ignored.
+
+Write a new Supabase migration file supabase/migrations/0038_perf_indexes.sql (do NOT apply it) containing `create index if not exists org_members_user_id_idx on public.org_members(user_id);` and `create index if not exists sessions_status_idx on public.sessions(status);`. Match the header-comment style of the existing files in supabase/migrations/. This addresses the missing-index / N+1 perf issues #14 and #15.
+
+In the web app's PostHog initialization (search under web/src for the posthog init/config), disable session replay, surveys, web-vitals autocapture, and dead-click autocapture via the PostHog config options, while keeping the cookieless pageview + event capture intact. Then run `cd web && npx tsc --noEmit` and confirm the file you changed introduces no new type errors. This is issue #23.
+
+Add a concise "Orchestrator — ptln crank" section (~15 lines, matching the existing doc style) to the CLI docs explaining that `ptln crank --file backlog.txt --thread <id> --allow-bash --max N --max-tokens N` drives a backlog one task per git worktree, each leaving a reviewable branch, all sharing one context thread, and halting on --max / --max-tokens / consecutive failures.
