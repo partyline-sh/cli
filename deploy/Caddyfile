@@ -1,0 +1,3 @@
+partyline.sh, www.partyline.sh {
+	reverse_proxy web:3000
+}
