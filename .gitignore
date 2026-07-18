@@ -1,0 +1,5 @@
+partyline
+.partyline/
+*.log
+dist/
+.DS_Store
