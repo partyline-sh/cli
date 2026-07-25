@@ -1,0 +1,198 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
+
+// recRunner records the commands applyMergePolicy issues (and can force a failure at a given step).
+// The default runner answers the #211 gate checks as "checks configured" (repo view → a branch
+// name, protection api → ok) so pr/auto tests exercise the happy path.
+func recRunner(failOn string) (cmdRunner, *[]string) {
+	var calls []string
+	run := func(name string, args ...string) (string, error) {
+		line := name + " " + strings.Join(args, " ")
+		calls = append(calls, line)
+		if failOn != "" && strings.Contains(line, failOn) {
+			return "boom\nsecond line", fmt.Errorf("exit 1")
+		}
+		if strings.Contains(line, "defaultBranchRef") {
+			return "main\n", nil // base branch for the gate check
+		}
+		if strings.HasPrefix(line, "gh pr create") {
+			return "https://github.com/acme/repo/pull/42\n", nil // gh prints the new PR URL
+		}
+		return "", nil
+	}
+	return run, &calls
+}
+
+func TestApplyMergePolicy(t *testing.T) {
+	t.Run("manual opens no PR (pushWork already made the branch durable)", func(t *testing.T) {
+		run, calls := recRunner("")
+		note, prURL := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "manual", "", "", false)
+		if note != "" || prURL != "" {
+			t.Errorf("manual = (%q, %q), want empty", note, prURL)
+		}
+		if len(*calls) != 0 {
+			t.Errorf("manual issued commands %v, want none", *calls)
+		}
+	})
+
+	t.Run("pr pushes, opens a PR, and captures the URL (#212)", func(t *testing.T) {
+		run, calls := recRunner("")
+		note, prURL := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "pr", "", "", false)
+		if note != "PR opened" {
+			t.Errorf("note = %q, want \"PR opened\"", note)
+		}
+		if prURL != "https://github.com/acme/repo/pull/42" {
+			t.Errorf("prURL = %q, want the created PR URL", prURL)
+		}
+		if len(*calls) != 2 || !strings.HasPrefix((*calls)[0], "git push") || !strings.HasPrefix((*calls)[1], "gh pr create") {
+			t.Errorf("pr issued %v, want [git push…, gh pr create…]", *calls)
+		}
+	})
+
+	t.Run("auto enables auto-merge when the base branch has required checks", func(t *testing.T) {
+		run, calls := recRunner("")
+		note, _ := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "auto", "", "", false)
+		if note != "PR opened + auto-merge enabled" {
+			t.Errorf("note = %q", note)
+		}
+		last := (*calls)[len(*calls)-1]
+		if !strings.HasPrefix(last, "gh pr merge") || !strings.Contains(last, "--auto") {
+			t.Errorf("auto's final call = %q, want gh pr merge --auto", last)
+		}
+	})
+
+	t.Run("auto is WITHHELD when the base branch has no required checks (#211)", func(t *testing.T) {
+		// The required_status_checks probe fails → no CI gate → must NOT auto-merge.
+		run, calls := recRunner("required_status_checks")
+		note, _ := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "auto", "", "", false)
+		if !strings.HasPrefix(note, "PR opened; auto-merge withheld") {
+			t.Errorf("note = %q, want auto-merge withheld", note)
+		}
+		for _, c := range *calls {
+			if strings.HasPrefix(c, "gh pr merge") {
+				t.Errorf("merge was attempted despite no CI gate: %v", *calls)
+			}
+		}
+	})
+
+	t.Run("push failure stops early with a note (branch survives)", func(t *testing.T) {
+		run, calls := recRunner("git push")
+		note, _ := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "pr", "", "", false)
+		if !strings.HasPrefix(note, "push failed:") {
+			t.Errorf("note = %q, want push-failed", note)
+		}
+		if len(*calls) != 1 {
+			t.Errorf("should stop after the failed push, got %v", *calls)
+		}
+	})
+
+	t.Run("auto-merge unavailable leaves the PR open", func(t *testing.T) {
+		run, _ := recRunner("gh pr merge")
+		note, _ := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "auto", "", "", false)
+		if !strings.HasPrefix(note, "PR opened; auto-merge unavailable:") {
+			t.Errorf("note = %q", note)
+		}
+	})
+
+	t.Run("gitlab pushes then stops — never calls gh, emits an MR note", func(t *testing.T) {
+		run, calls := recRunner("")
+		note, prURL := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "pr", "gitlab", "", false)
+		if !strings.Contains(note, "merge request in GitLab") {
+			t.Errorf("note = %q, want a GitLab MR instruction", note)
+		}
+		if prURL != "" {
+			t.Errorf("prURL = %q, want empty (partyline doesn't open the MR)", prURL)
+		}
+		if len(*calls) != 1 || !strings.HasPrefix((*calls)[0], "git push") {
+			t.Errorf("gitlab issued %v, want [git push…] only (no gh)", *calls)
+		}
+		for _, c := range *calls {
+			if strings.HasPrefix(c, "gh ") {
+				t.Errorf("gitlab must never call gh: %v", *calls)
+			}
+		}
+	})
+
+	t.Run("bitbucket pushes then stops — never calls gh, emits a PR note", func(t *testing.T) {
+		run, calls := recRunner("")
+		note, prURL := applyMergePolicy(run, "crank-01-x", "crank: x", "body", "auto", "bitbucket", "", false)
+		if !strings.Contains(note, "pull request in Bitbucket") {
+			t.Errorf("note = %q, want a Bitbucket PR instruction", note)
+		}
+		if prURL != "" {
+			t.Errorf("prURL = %q, want empty", prURL)
+		}
+		if len(*calls) != 1 || !strings.HasPrefix((*calls)[0], "git push") {
+			t.Errorf("bitbucket issued %v, want [git push…] only (no gh, no auto-merge)", *calls)
+		}
+	})
+}
+
+// The project's base branch must reach BOTH gh calls that care about it: the PR's --base (what the
+// PR targets) and the #211 protection probe (protection is per-branch, so probing `main` while
+// merging into an unprotected `staging` would auto-merge with no CI gate — the exact hole #211
+// closed for the default branch).
+func TestApplyMergePolicyBaseBranch(t *testing.T) {
+	t.Run("pr targets the configured base", func(t *testing.T) {
+		run, calls := recRunner("")
+		applyMergePolicy(run, "crank-01-x", "crank: x", "body", "pr", "", "staging", false)
+		create := (*calls)[1]
+		if !strings.Contains(create, "--base staging") {
+			t.Errorf("pr create = %q, want --base staging", create)
+		}
+	})
+
+	t.Run("no base leaves gh on the repo default", func(t *testing.T) {
+		run, calls := recRunner("")
+		applyMergePolicy(run, "crank-01-x", "crank: x", "body", "pr", "", "", false)
+		if create := (*calls)[1]; strings.Contains(create, "--base") {
+			t.Errorf("pr create = %q, want no --base (gh uses the repo default)", create)
+		}
+	})
+
+	t.Run("auto probes protection on the base it merges into, not the repo default", func(t *testing.T) {
+		run, calls := recRunner("")
+		applyMergePolicy(run, "crank-01-x", "crank: x", "body", "auto", "", "staging", false)
+		joined := strings.Join(*calls, "\n")
+		if !strings.Contains(joined, "branches/staging/protection") {
+			t.Errorf("calls = %v, want the protection probe on staging", *calls)
+		}
+		if strings.Contains(joined, "defaultBranchRef") {
+			t.Errorf("calls = %v, want NO repo-default lookup when a base is configured", *calls)
+		}
+	})
+}
+
+// pushWork is the invariant that keeps committed work from dying on one machine. It is separate
+// from applyMergePolicy on purpose: every path that skips the merge (verify rejected, manual
+// policy, rate limit mid-repair) used to skip the PUSH too, which is how a finished, reviewed
+// feature ended up existing only in a worktree on the owner's laptop — no remote branch, no PR,
+// and a run that kept re-reviewing work it could never deliver.
+func TestPushWork(t *testing.T) {
+	t.Run("pushes the branch and says so", func(t *testing.T) {
+		run, calls := recRunner("")
+		note := pushWork(run, "crank-01-x")
+		if len(*calls) != 1 || (*calls)[0] != "git push -u origin crank-01-x" {
+			t.Fatalf("expected exactly one push, got %v", *calls)
+		}
+		if note != "pushed crank-01-x" {
+			t.Fatalf("note = %q", note)
+		}
+	})
+
+	t.Run("a failed push says WHERE the work is — silent data loss is the bug", func(t *testing.T) {
+		run, _ := recRunner("git push")
+		note := pushWork(run, "crank-01-x")
+		if !strings.Contains(note, "only on this machine") {
+			t.Fatalf("a failed push must name the risk, got %q", note)
+		}
+		if !strings.Contains(note, "boom") {
+			t.Fatalf("must carry git's own reason, got %q", note)
+		}
+	})
+}
