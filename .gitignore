@@ -1,0 +1,14 @@
+partyline
+.partyline/
+*.log
+dist/
+.DS_Store
+
+# Env files anywhere. web/.gitignore already covered web/, but NOT the repo root or deploy/stack/,
+# which is where a self-hoster's or an operator's real .env naturally lands — `deploy/stack/.env`
+# is required by the compose file, so it is a file people are actively invited to create right
+# next to tracked ones. This repo is destined to be public (scripts/secret-scan.sh), and a public
+# git history cannot be un-leaked.
+.env
+.env.*
+!.env.example
