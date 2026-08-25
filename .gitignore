@@ -1,0 +1,25 @@
+partyline
+.partyline/
+*.log
+dist/
+.DS_Store
+
+# Env files anywhere. web/.gitignore already covered web/, but NOT the repo root or deploy/stack/,
+# which is where a self-hoster's or an operator's real .env naturally lands — `deploy/stack/.env`
+# is required by the compose file, so it is a file people are actively invited to create right
+# next to tracked ones. This repo is destined to be public (scripts/secret-scan.sh), and a public
+# git history cannot be un-leaked.
+.env
+.env.*
+!.env.example
+
+# Build artifacts that were committed by accident (25MB of binaries).
+# The relay binary is produced by `go build ./relay`; ptln-guided was a one-off
+# from #630 and is referenced nowhere. The docker-compose references are to the
+# IMAGE name partyline/partyline-relay, not to these files.
+partyline-relay
+ptln-guided
+# Node caches at the REPO ROOT. web/.gitignore covers web/node_modules, but its `/node_modules`
+# is rooted at web/ — so a root-level node_modules (vitest writes a cache there when run from the
+# repo root) was tracked, and one of its files had been committed.
+/node_modules/
