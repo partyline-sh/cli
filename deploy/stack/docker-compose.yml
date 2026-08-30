@@ -1,0 +1,359 @@
+# Staging stack for the Hetzner box (/opt/partyline). Mirrors deploy/docker-compose.yml — source is
+# rsync'd to ./src by CI, web builds on the box, runtime secrets live in /opt/partyline/.env.
+#
+# THE FULL SUPABASE EXIT (docs/epics/supabase-exit.md, thread #333). ZERO Supabase-authored
+# components: no GoTrue, no Supabase Storage, no Realtime, no pg_cron, no hosted anything.
+#   auth    → an OIDC provider is the IdP; the app owns sessions and mints the JWT PostgREST verifies (#334)
+#   storage → the S3 API: MinIO ships in this stack as the default (self-host H.4);
+#             partyline.sh's own boxes point the same four S3_* values at Cloudflare R2
+#   cron    → an app-side ticker
+#   realtime→ deleted; polling reconcilers already exist and are already load-bearing
+#
+# PostgREST stays. It is an independent OSS project (begriffs, 2015) that predates Supabase, and
+# keeping it means all ~2,300 supabase-js query-builder calls and all 60 RLS policies are
+# UNCHANGED — auth.uid() reads the claims GUC PostgREST sets from our own session token. Caddy
+# does the path routing Kong does in Supabase's compose, so there is no Kong either.
+#
+# No relay service: that's prod-only (pppp.sh).
+services:
+  postgres:
+    # Back to the stock image. The custom build existed ONLY to add pg_cron for two statements, and
+    # the `ticker` service below now owns both — so there is no longer a Postgres extension keeping
+    # a bespoke image alive.
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: partyline
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Consumed by init/00-bootstrap.sh to create PostgREST's login role. Without it the
+      # bootstrap aborts on `set -u` and the whole database comes up with no roles, no auth
+      # schema, and no way for PostgREST to connect — which is exactly what happened.
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD}
+    # Tuned for a 4 GB box. Conservative on purpose: leave headroom for the app rather than take
+    # the usual 25%-of-RAM shared_buffers.
+    command: >
+      postgres
+      -c shared_buffers=384MB
+      -c effective_cache_size=1GB
+      -c work_mem=8MB
+      -c maintenance_work_mem=128MB
+      -c max_connections=100
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Bootstrap runs ONCE, on an empty data dir, before any migration: creates the anon /
+      # authenticated / service_role / supabase_auth_admin roles and the auth schema that 33 of
+      # our 114 migrations assume exist. rsync'd here by the deploy workflow. Contents are the
+      # deliverable of task #177 — the CI portability gate tells us exactly what's required.
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d partyline"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # THE BUNDLED IDENTITY PROVIDER.
+  #
+  # partyline has no local accounts by design — sign-in is OIDC, and identity storage is ours while
+  # the PROVIDER is somebody else's problem. Requiring a commercial account to log into software you
+  # installed yourself is not self-hosting, and telling people to stand up Keycloak themselves is a
+  # bigger job than the thing they came to install.
+  #
+  # So it ships. Keycloak rather than something lighter (Dex is a tenth the size) for one reason
+  # that decides it: Keycloak has an admin REST API, so partyline can create users, send invites and
+  # manage roles from its own settings page. Dex's users live in a config file, which makes "add a
+  # teammate" an edit-and-restart. The weight is real — a JVM, ~1GB — and it is the price of user
+  # management you can drive from the product.
+  #
+  # Behind Caddy at /auth, so there is one hostname and one certificate. KC_HTTP_ENABLED is correct
+  # here BECAUSE it is not exposed: TLS terminates at Caddy and this port is never published.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.1
+    restart: unless-stopped
+    # NOT --optimized. That flag means "the build step already ran", and on the stock image it has
+    # not: Keycloak refuses to start with "The '--optimized' flag was used for first ever server
+    # start", restarts, and refuses again — a crash loop whose only symptom is an unhealthy
+    # container. Plain `start` performs the build on first boot, which costs one slow start and
+    # then behaves.
+    command: start --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # The first administrator of the PROVIDER, not of partyline. env-bootstrap generates this and
+      # prints it once; it is how you reach the Keycloak console to add a second sign-in method or
+      # federate to a corporate IdP later.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      # The issuer Keycloak PUBLISHES must equal the one the app discovers, or discovery refuses the
+      # document. Both derive from SITE_URL, so they cannot drift.
+      # OIDC_PUBLIC_URL is the base URL a BROWSER reaches Keycloak on, including /auth. Behind
+      # Caddy that is SITE_URL/auth, which is the default and what every existing box gets. With
+      # no reverse proxy Keycloak is published on its own port, so the two are different URLs and
+      # env-bootstrap.sh writes this one. It must match OIDC_ISSUER's prefix exactly or discovery
+      # refuses the document.
+      #
+      # BRACELESS $SITE_URL INSIDE THE DEFAULT, DELIBERATELY. Compose cannot parse a ${...} that is
+      # followed by more text inside a :- default — "${OIDC_PUBLIC_URL:-${SITE_URL}/auth}" fails
+      # with "invalid interpolation format" and the whole stack refuses to start. The braceless
+      # form ends at the "/" and resolves correctly. Verified against compose v2.
+      KC_HOSTNAME: ${OIDC_PUBLIC_URL:-$SITE_URL/auth}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Keycloak 26 serves health on the MANAGEMENT port (9000), not the HTTP one, and
+      # KC_HTTP_RELATIVE_PATH applies there too — so it is /auth/health/ready, not /health/ready.
+      # The wrong path returns "Resource not found" and the container sits unhealthy forever while
+      # being perfectly able to serve OIDC, which is a confusing way to fail.
+      #
+      # No curl: the image ships without it. bash's /dev/tcp is what is actually available here.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /auth/health/ready HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  postgrest:
+    # Serves the REST API supabase-js talks to. RLS is enforced exactly as on Supabase: the JWT's
+    # claims land in request.jwt.claims, which is what auth.uid() reads. Nothing about this depends
+    # on Supabase — PostgREST is upstream OSS.
+    image: postgrest/postgrest:v12.2.3
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/partyline
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      # Verifies the session token the APP mints (see #334). Same secret the app signs with.
+      PGRST_JWT_SECRET: ${SESSION_JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  # NO GoTrue. An OIDC provider authenticates; the Next.js app owns sessions and mints the JWT
+  # PostgREST verifies (thread contract #334). Auth is therefore code in `web`, not a container.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  # THE DEFAULT REGISTRY IS DOCKER HUB, NOT GHCR, AND THAT IS LOAD-BEARING.
+  #
+  # This file is what a self-hoster runs, and `ptln server install` embeds it. GHCR receives every
+  # image, but those copies are INTERNAL — the org disallows public packages, which is the whole
+  # reason publication moved to Hub (scripts/public-images.sh asserts exactly this, in both
+  # directions). An anonymous GHCR manifest request returns 403; the Hub one returns 200.
+  #
+  # So a ghcr.io default meant a stranger's very first `docker compose up` failed with
+  # "error from registry: denied", which reads as a permissions problem with their own account
+  # rather than ours. WEB_IMAGE / RELAY_IMAGE still override the whole reference for anyone who
+  # does have GHCR access or runs a mirror.
+  web:
+    # Built on the monolith runner and pushed to GHCR — this box only pulls (2 vCPU / 4 GB can't
+    # spare the ~2 GB `next build` wants). NEXT_PUBLIC_* are baked into the image at build time, so
+    # they are NOT read here.
+    #
+    # OUR path, not the public one. ghcr.io is PRIVATE: both boxes and both deploy workflows
+    # authenticate to it, and an anonymous pull is refused. That is deliberate — GHCR package
+    # visibility is an organisation setting reachable only through a browser (no REST route, and of
+    # GraphQL's 258 mutations the one package-related mutation deletes versions), so it could never
+    # be automated. The PUBLIC copy of this file, served at partyline.sh/self-host/docker-compose.yml,
+    # is rewritten to pull the same digests from Docker Hub, which is anonymously pullable — see
+    # internal/surfacegen/gen.go. Changing the default HERE would move production onto a registry
+    # that rate-limits anonymous pulls, to solve a problem production does not have.
+    #
+    # The
+    # DEFAULT is :latest — the tag deploy-prod.yml puts on the bytes it promoted — because a copy of
+    # this file with no .env must not land someone on :staging, which is our test channel and moves
+    # several times a day. Our own boxes never hit the default: both deploy workflows upsert WEB_TAG
+    # into the box's .env on every deploy, which is also what makes rollback "set WEB_TAG to the
+    # previous prod-<sha>, up -d". PIN IT: see deploy/stack/README.md — a floating tag means your
+    # next `pull` silently changes the software.
+    #
+    # Two knobs, because they answer different questions. WEB_TAG picks a tag and is what both
+    # deploy workflows upsert. WEB_IMAGE replaces the WHOLE reference, which is the only way to
+    # pin by digest (`…-web@sha256:…`) — `${WEB_TAG}` cannot express it, since a `@` in the tag
+    # position is not a valid Docker reference — and is also the seam for anyone mirroring these
+    # images into their own registry. Unset, it falls through to the tag. Verified against compose
+    # v2.15.1: the nested default resolves in all three cases.
+    image: ${WEB_IMAGE:-docker.io/partyline/partyline-web:${WEB_TAG:-latest}}
+    # REQUIRED, deliberately. Compose refuses to start (and `compose config` exits non-zero) when
+    # this file is missing, which is the loud failure we want: every real secret in the stack
+    # arrives from here, and an optional env_file would instead bring the whole thing up with blank
+    # values and no error. Copy env.example to .env beside this file. To validate the compose file
+    # WITHOUT configuring anything, an empty `touch deploy/stack/.env` is enough.
+    env_file: ./.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    restart: unless-stopped
+    expose: ["3000"]
+    depends_on: [redis, postgrest]
+    # Lets the deploy WAIT for the new container to serve before moving on (`up -d --wait`), and
+    # gives Caddy's retry window something definite to end on. /api/health touches no dependency,
+    # so a Postgres blip can never mark the web container unhealthy and restart-loop it.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  relay:
+    # The blind E2EE relay. Staging needs its OWN, because the relays row imported from production
+    # pointed at pppp.sh:22 — a session started here would have handed out a join link to the
+    # PRODUCTION relay.
+    #
+    # RELAY_API is the important one: it defaults to https://partyline.sh, so without it a staging
+    # relay heartbeats into prod's relay pool and prod's director starts handing it real sessions.
+    # It comes from .env (env-bootstrap.sh writes it per environment) — NOT from an `environment:`
+    # key here, which would override env_file and give both environments the same value. This stack
+    # is shared by staging and prod, so anything environment-specific has to live in .env.
+    #
+    # RELAY_PORT is the host-side port. Staging publishes 2222 (staging.partyline.sh:2222) and keeps
+    # sshd on 22. PROD publishes 22, because "pppp.sh:22" is compiled into every shipped CLI
+    # (shell.go, account_cmds.go, share_tab.go) — a joiner running `ssh <code>@pppp.sh` has no way to
+    # reach another port. Prod's sshd is moved to 2202 via a ssh.socket drop-in to free it; that box
+    # is socket-activated, so `Port` in sshd_config is inert and the socket unit owns the listener.
+    # Public package, same as web — anonymous pull, :latest by default. See the note above.
+    image: ${RELAY_IMAGE:-docker.io/partyline/partyline-relay:${RELAY_TAG:-latest}}
+    env_file: ./.env
+    restart: unless-stopped
+    # BIND_ADDR is the host interface every published port binds to; 0.0.0.0 is what an
+    # unqualified "2222:2222" already meant, so the default changes nothing. Set it to 127.0.0.1,
+    # a LAN address or a Tailscale IP to stop publishing on every NIC.
+    ports: ["${BIND_ADDR:-0.0.0.0}:${RELAY_PORT:-2222}:2222"]
+
+  ticker:
+    # Replaces pg_cron (Supabase exit, thread #333). A 60s loop POSTing /api/v1/tick, which reaps
+    # stale sessions and auto-resumes rate-limited runs.
+    #
+    # busybox rather than a cron image or a Node process: the whole job is "curl on a timer", and
+    # the endpoint is idempotent, so a missed or duplicated tick is a non-event. Nothing here needs
+    # scheduling semantics — no catch-up, no overlap control, no persistence.
+    #
+    # It talks to web:3000 over the compose network, so the endpoint is never exposed publicly.
+    image: busybox:1.36
+    restart: unless-stopped
+    depends_on: [web]
+    env_file: ./.env
+    command:
+      - sh
+      - -c
+      - |
+        echo "ticker: starting (60s)"
+        while true; do
+          sleep 60
+          wget -q -O- --header="Authorization: Bearer $$TICK_SECRET" \
+            --post-data='' http://web:3000/api/v1/tick >/dev/null 2>&1 \
+            || echo "ticker: tick failed (web down or TICK_SECRET wrong)"
+        done
+
+  minio:
+    # Object storage, IN the stack by default (self-host epic H.4). A fresh install stores
+    # attachments with zero external accounts; pointing at Cloudflare R2, AWS S3 or any other
+    # S3-compatible service is four values in .env (S3_ENDPOINT / S3_ACCESS_KEY_ID /
+    # S3_SECRET_ACCESS_KEY / S3_BUCKET) and nothing else. partyline.sh's own boxes run R2 and keep
+    # doing so; the app reads S3_* first and falls back to the older R2_* names, so their .env is
+    # unchanged. Set MINIO_REPLICAS=0 on such a box to stop running a storage server it never uses.
+    #
+    # NO PUBLISHED PORT, deliberately. The bucket is private and every byte is served by an
+    # authenticated route in the web app after an RLS read proves access — there is no public object
+    # URL anywhere in the product, so nothing outside this compose network ever needs to reach
+    # MinIO. Publishing 9000 would create a second, unauthenticated way to ask for the same bytes.
+    #
+    # Credentials come from /opt/partyline/.env (MINIO_ROOT_USER / MINIO_ROOT_PASSWORD, generated by
+    # scripts/env-bootstrap.sh) via env_file, never from an `environment:` default here — a default
+    # in a committed file is a credential in git, and MinIO's own minioadmin/minioadmin fallback is
+    # exactly the thing to avoid.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    env_file: ./.env
+    command: server /data
+    volumes:
+      - minio_data:/data
+    # `mc ready local` is MinIO's own liveness check and ships inside this image.
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    deploy:
+      replicas: ${MINIO_REPLICAS:-1}
+
+  minio-init:
+    # First-run bucket creation. Idempotent by construction (`mb --ignore-existing`), so it re-runs
+    # harmlessly on every `docker compose up` and there is no "did someone create the bucket?" step
+    # in the install.
+    #
+    # ONE bucket: web/src/lib/api/storage.ts puts the old Supabase bucket names
+    # (party-attachments / work-item-attachments / skill-bundles) in as KEY PREFIXES inside a single
+    # bucket, so there is nothing else to create.
+    #
+    # `anonymous set none` is belt-and-braces — a fresh MinIO bucket is already private — but it
+    # makes the intent explicit and would REVOKE public access if a human ever granted it by hand.
+    # Credentials reach mc through MC_HOST_local rather than `mc alias set`, so they never appear in
+    # a process argv.
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    env_file: ./.env
+    depends_on:
+      minio: {condition: service_healthy}
+    restart: "no"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        # Fail loudly at install time rather than let MinIO sit on its built-in
+        # minioadmin/minioadmin default: an empty value here means .env was never bootstrapped.
+        if [ -z "$$MINIO_ROOT_USER" ] || [ -z "$$MINIO_ROOT_PASSWORD" ]; then
+          echo "minio-init: MINIO_ROOT_USER / MINIO_ROOT_PASSWORD are unset in /opt/partyline/.env" >&2
+          echo "minio-init: run scripts/env-bootstrap.sh on this box, then 'docker compose up -d'" >&2
+          exit 1
+        fi
+        export MC_HOST_local="http://$$MINIO_ROOT_USER:$$MINIO_ROOT_PASSWORD@minio:9000"
+        bucket="$${S3_BUCKET:-partyline}"
+        mc mb --ignore-existing "local/$$bucket"
+        mc anonymous set none "local/$$bucket"
+        echo "minio-init: bucket $$bucket ready (private)"
+    deploy:
+      replicas: ${MINIO_REPLICAS:-1}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # NOTHING HERE HARDCODES 80/443 ANY MORE. A self-hoster installs onto a box that already does
+    # something, and "port 80 is taken" used to be the end of the install: compose refused to
+    # start and there was no knob to turn. HTTP_PORT / HTTPS_PORT are the host-side ports and
+    # BIND_ADDR the interface; the defaults are exactly what the two literals used to be, so an
+    # existing box is unaffected.
+    #
+    # MOVING THE PORTS COSTS YOU AUTOMATIC CERTIFICATES. Let's Encrypt dials the PUBLIC 80 (HTTP-01)
+    # or 443 (TLS-ALPN-01); it will not dial 8443 because your compose file says so. So HTTP_PORT /
+    # HTTPS_PORT are for the two cases where that does not matter — something else terminates TLS
+    # in front of this stack, or you are on a private network and not using TLS at all. For the
+    # second, see docker-compose.direct.yml, which drops Caddy entirely.
+    #
+    # CADDY_REPLICAS=0 stops running the edge, the same seam MINIO_REPLICAS uses. Unset = 1.
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${BIND_ADDR:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    deploy:
+      replicas: ${CADDY_REPLICAS:-1}
+
+volumes:
+  pgdata:
+  minio_data:
+  caddy_data:
+  caddy_config:
