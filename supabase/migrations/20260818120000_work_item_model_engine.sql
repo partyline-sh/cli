@@ -1,0 +1,24 @@
+-- Per-work-item engine/model override.
+--
+-- Today the engine and model a build runs on are decided entirely by the PROJECT
+-- (projects.build_engine / build_model, falling back to the org default and then the machine's own
+-- default). That is the right default and stays the default — but it is a single setting for a whole
+-- repo, so "run this one gnarly task on a bigger model" currently means changing the project setting,
+-- starting the card, and remembering to change it back. These two columns give a single work item a
+-- place to say what it wants, resolved at promotion time.
+--
+-- Deliberately NULLABLE with NO default and NO backfill: null means "inherit" — the existing
+-- resolution chain is unchanged, so every row that exists today keeps behaving exactly as it does
+-- now. Nothing reads these yet; this migration is inert on its own (additive, backward-compatible,
+-- safe for the old app to run against per the deploy's swap window contract).
+--
+-- Free text, not a check constraint, matching every other engine/model column in this schema
+-- (projects.*_engine, runs.engine, party_agents.engine, orgs.default_engine): the closed set of
+-- engines and their model names lives in the CLI and moves faster than migrations do. Validation is
+-- the API layer's job.
+--
+-- No RLS change needed — these are plain columns on work_items, which is already org-scoped by the
+-- existing "work_items: team members read" policy, and writes still go through the API routes with
+-- the service role.
+alter table public.work_items add column if not exists model  text;
+alter table public.work_items add column if not exists engine text;
