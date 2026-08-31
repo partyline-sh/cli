@@ -1,0 +1,120 @@
+{
+  "admin_console": {
+    "label": "Operator console",
+    "env": [
+      "PARTYLINE_ADMIN_EMAILS"
+    ],
+    "docs": "deploy/stack/env.example#admin_console"
+  },
+  "discord": {
+    "label": "Discord bot",
+    "env": [
+      "DISCORD_BOT_TOKEN",
+      "DISCORD_PUBLIC_KEY"
+    ],
+    "docs": "deploy/stack/env.example#discord"
+  },
+  "email": {
+    "label": "Transactional email (Resend)",
+    "env": [
+      "RESEND_API_KEY",
+      "RESEND_FROM"
+    ],
+    "docs": "deploy/stack/env.example#email"
+  },
+  "github_app": {
+    "label": "GitHub App",
+    "env": [
+      "GITHUB_APP_ID",
+      "GITHUB_APP_PRIVATE_KEY_B64",
+      "GITHUB_APP_SLUG"
+    ],
+    "docs": "deploy/stack/env.example#github_app"
+  },
+  "github_webhook": {
+    "label": "GitHub webhook (board reconciliation)",
+    "env": [
+      "GITHUB_WEBHOOK_SECRET"
+    ],
+    "docs": "deploy/stack/env.example#github_webhook"
+  },
+  "invite_assertions": {
+    "label": "Invite-only join assertions",
+    "env": [
+      "PARTYLINE_ASSERT_KEY"
+    ],
+    "docs": "deploy/stack/env.example#invite_assertions"
+  },
+  "oidc": {
+    "label": "Authentication (generic OIDC)",
+    "env": [
+      "OIDC_CLIENT_ID",
+      "OIDC_CLIENT_SECRET",
+      "OIDC_ISSUER"
+    ],
+    "docs": "deploy/stack/env.example#oidc"
+  },
+  "redis": {
+    "label": "Redis",
+    "env": [
+      "REDIS_URL"
+    ],
+    "docs": "deploy/stack/env.example#redis"
+  },
+  "relay": {
+    "label": "Relay (pppp.sh)",
+    "env": [
+      "RELAY_ID",
+      "RELAY_SECRET"
+    ],
+    "docs": "deploy/stack/env.example#relay"
+  },
+  "scribe": {
+    "label": "Scribe (server-side distillation)",
+    "env": [
+      "PARTYLINE_SCRIBE_KEY"
+    ],
+    "docs": "deploy/stack/env.example#scribe"
+  },
+  "session_key_wrap": {
+    "label": "Session key encryption at rest",
+    "env": [
+      "SESSION_KEY_WRAP"
+    ],
+    "docs": "deploy/stack/env.example#session_key_wrap"
+  },
+  "slack": {
+    "label": "Slack app",
+    "env": [
+      "SLACK_CLIENT_ID",
+      "SLACK_CLIENT_SECRET",
+      "SLACK_SIGNING_SECRET"
+    ],
+    "docs": "deploy/stack/env.example#slack"
+  },
+  "storage": {
+    "label": "Object storage (S3 API \u2014 MinIO ships in the stack; R2/S3 by changing these four)",
+    "env": [
+      "S3_ACCESS_KEY_ID",
+      "S3_BUCKET",
+      "S3_ENDPOINT",
+      "S3_SECRET_ACCESS_KEY"
+    ],
+    "docs": "deploy/stack/env.example#storage"
+  },
+  "telegram": {
+    "label": "Telegram bot",
+    "env": [
+      "TELEGRAM_BOT_TOKEN",
+      "TELEGRAM_WEBHOOK_SECRET"
+    ],
+    "docs": "deploy/stack/env.example#telegram"
+  },
+  "ticker": {
+    "label": "Ticker (scheduled sweeps)",
+    "env": [
+      "TICK_SECRET"
+    ],
+    "docs": "deploy/stack/env.example#ticker"
+  }
+}
