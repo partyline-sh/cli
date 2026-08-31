@@ -1,0 +1,46 @@
+# Staging edge. Same shape as deploy/Caddyfile plus ONE prefix route: the data client appends
+# /rest/v1 to PGRST_URL, so pointing that at this host and routing the prefix to PostgREST means the
+# ~2,300 data calls need no change at all. (The client is still supabase-js, talking to our own
+# PostgREST — see web/src/lib/supabase/server.ts. This is the job Kong did in Supabase's own stack;
+# Caddy does it in three lines, so there is no Kong.)
+#
+# There is deliberately NO /auth/v1 route — GoTrue is gone. An OIDC provider is the IdP and the Next.js app
+# owns sessions, so auth lives on the app's own routes and falls through to `web` below (#334).
+#
+# Order matters: handle_path is matched before the catch-all.
+staging.partyline.sh {
+	# handle_path strips the prefix before proxying, which is what PostgREST expects.
+	handle_path /rest/v1/* {
+		reverse_proxy postgrest:3000
+	}
+
+	# The bundled identity provider. `handle`, NOT `handle_path`: Keycloak is configured with
+	# KC_HTTP_RELATIVE_PATH=/auth and publishes issuer URLs containing /auth, so stripping the
+	# prefix here would make every discovery document point at paths that 404.
+	handle /auth/* {
+		reverse_proxy keycloak:8080
+	}
+
+	# Everything else — app, API, and auth — is the Next.js app.
+	handle {
+		reverse_proxy web:3000 {
+			# RIDE OUT THE DEPLOY. `compose up -d --force-recreate web` stops the old container
+			# before the new one finishes booting, so for a few seconds web:3000 refuses
+			# connections and every request in that window got a 502 — including top-level
+			# navigations, which left people on Caddy's error page with no way back. Polling made
+			# it near-certain to be hit, since an open board requests continuously.
+			#
+			# lb_try_duration makes Caddy HOLD the request and keep re-dialling instead of failing
+			# it. Retries happen only on a dial error, before any bytes reach the upstream, so a
+			# POST cannot be applied twice.
+			lb_try_duration 30s
+			lb_try_interval 250ms
+			# Never mark the only upstream dead — with one backend, taking it out of rotation just
+			# means a guaranteed 502 for fail_duration instead of a retry.
+			fail_duration 0
+		}
+	}
+
+	# Staging must never be indexed.
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+}
