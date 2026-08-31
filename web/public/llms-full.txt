@@ -1,0 +1,854 @@
+# partyline — full reference for language models
+
+partyline is one command-line tool (`ptln`) plus an optional web control plane for
+running software work across humans and AI agents. The agents run on machines you own — your laptop,
+your server — never on partyline's infrastructure. It does four things: manages and multiplexes your
+local AI CLI sessions; shares a live terminal with people and agents over an end-to-end-encrypted
+channel; runs autonomous work through a fleet of your own machines, each task in an isolated git
+worktree, gated before it merges; and keeps durable shared context that survives across people,
+machines, and engines.
+
+This file is GENERATED from the source tree. The command list, the vocabularies, and the
+endpoint count below are extracted from the code, not written by hand, so they describe the
+version that produced them rather than the version someone last remembered to document.
+
+It is published as plain text at https://partyline.sh/llms-full.txt — no account, no install, nothing to
+connect. Fetch it, or paste it into an assistant, and you have the whole product in one file.
+That address is stable: treat any change to it as a breaking change.
+
+## Install
+
+- macOS: `brew install partyline-sh/tap/partyline`
+- Linux: `curl -fsSL https://partyline.sh/install.sh | sh`
+
+The binary is `ptln` (also installed as `partyline`). `ptln version`, `ptln upgrade`.
+
+## Engines and models
+
+Engines: work runs on Claude Code, Codex, Gemini CLI, opencode, or goose;
+antigravity is available for interactive and planning use only, because its sole headless mode is a
+permissions bypass partyline will not pass. Context Threads (the shared-memory MCP tools) are
+verified on Claude Code only today — Codex is wired but experimental and gated behind an env flag,
+and Gemini has no MCP wiring at all. Models are engine-defined and free-form; partyline never holds
+a model API key, because inference always runs on your own credentials through your own engine.
+
+## Trust model
+
+Trust model: the control plane holds DATA and never commands. A run carries a
+project LABEL, and the machine's own local registry resolves that label to an absolute path — no
+value from the server ever becomes a path or an argv. Shared sessions are end-to-end encrypted
+(Noise); the relay forwards ciphertext it cannot read, and the key travels in the join link's URL
+fragment, which browsers never send to a server. Joiners are view-only until the host grants the
+keyboard.
+
+## How the work model fits together
+
+Terms, in the order you meet them:
+
+- **Project** — one repository, identified by its `origin` remote rather than by a local path (the
+  same repo is at a different path on everyone else's machine). A project owns a base branch, the
+  machines that may build for it, and a context thread.
+
+- **Context thread** — the team's durable shared memory for a project: the decisions, constraints
+  and interface contracts that outlive any one session, attributed to the person or agent that
+  recorded them. An agent reads it with `recall` and adds to it with `remember`; on the CLI that is
+  `ptln thread recall <id>` and `ptln thread remember <id> <kind> "<fact>"` (kinds: decision,
+  constraint, contract, question, note). It is NOT a chat log and NOT a transcript — it holds small,
+  high-signal facts, so that a fresh session tomorrow, on another machine, on another engine, starts
+  from what the team already settled instead of re-litigating it. Recording conversation in it is the
+  common misuse; record the outcome, not the discussion.
+
+- **Work item** — one planned, bounded piece of work on the board. The Planning agent (`ptln plan`,
+  or the planning_open → planning_note → planning_finalize tools over MCP) interviews an idea into
+  items rather than accepting hand-assembled ones. Finalize applies the same specificity gate the
+  board applies at start time: it REFUSES work that does not name a target, does not carry acceptance
+  criteria including at least one EXECUTABLE check, or still has an unanswered open question. Those
+  refusals are the feature — an unanswered question belongs back with the human, not decided quietly
+  by the agent.
+
+- **FILING IS NOT STARTING.** Finalizing a plan FILES it; nothing runs. A filed item starts only when
+  it is promoted, which dispatches a worker onto a machine in your fleet. An agent that has just filed
+  work must say so plainly rather than implying a build is under way — reporting queued work as
+  started is the single most common wrong answer about this product.
+
+- **Run** — one machine building one work item. It happens in an isolated git worktree off the
+  project's base branch, leaves a reviewable branch, and — depending on the project's merge policy
+  (manual, pr, or auto) — opens a pull request. Runs are executed by `ptln work` (one task),
+  `ptln crank` (a worklist), or the always-on `ptln daemon` (work the control plane asks this
+  machine to do). Nothing runs on partyline's infrastructure.
+
+- **Trust gates** — what stands between a finished run and your main branch: the repo's own
+  acceptance checks, plus an independent adversarial reviewer on a different model. A task that fails
+  is quarantined for a human. It is never merged on the strength of the agent's own say-so.
+
+- **Session** — a live terminal. `ptln` on its own browses and multiplexes the AI CLI sessions
+  already on this machine (local-only, no account needed); `ptln start` shares your shell over an
+  end-to-end-encrypted channel and prints a join link. Joiners are view-only until the host grants
+  the keyboard.
+
+- **Party** — a coordination channel where people and agents work together, from the web, Slack, or
+  the CLI. Each agent still does its real work in its own environment; the party carries directives,
+  status and hand-offs. Unlike a session it is encrypted in transit and at rest but NOT end to end,
+  so it is for coordination, not secrets.
+
+## Concepts — the model behind the surface
+
+The commands and endpoints below this section tell you what partyline can DO. This section
+is what it MEANS, and it is the part an agent gets wrong: every explanation here is one
+where knowing the command without the model produces a confident, wrong statement to a
+human. Each is extracted verbatim from the documentation page that owns it — the citation
+is the file to correct if any of it is wrong.
+
+### What a Context Thread is, and why one exists
+
+A **Context Thread** is a shared, attributed feed of the **decisions, constraints, and contracts**
+that cross the seam between people and components — the ones any agent or person can read and add
+to. It exists because agents lose the plot across people, machines and tools: you decide something
+with Claude on your laptop, your teammate's Codex on the build box never hears about it, and
+tomorrow a fresh session re-litigates it.
+
+The MCP server that carries a thread into an agent is named **`partyline-context-threads`**.
+
+> **Not a chat, not a transcript.** A thread holds *durable facts* — "we dropped guest checkout for
+> v1", "the API returns `created_at` in ISO-8601" — not conversation. Small, high-signal, and safe
+> to inject into any agent's context.
+
+_Source: web/src/app/(marketing)/docs/context-threads/page.mdx (verified at 7c256f3a against cg_mcp.go, web/src/lib/api/threads.ts)_
+
+### A project's thread link and canon inheritance are two different links
+
+There are **two** links between a thread and a project. They are stored separately, they mean
+different things, and **neither one writes the other** — so it is entirely possible to attach a
+thread to a project, see a ✓, and have the project go on resolving to a different thread.
+
+| | What it decides | How it is set |
+|---|---|---|
+| **The project's thread** (`threads.project_id`) | Which thread this project — and every checkout of it — **resolves to**. This is the one that decides what an agent in the repo reads and writes. | The owner-only **Project** picker on the thread's page, or `ptln thread use <thread-id> <project-id>` |
+| **Attachment** (`thread_projects`) | Which projects' **canon** (their durable, promoted facts) this thread **inherits**. | `ptln thread attach <thread-id> <project-id>` |
+
+Resolution reads the first one only: a project resolves to its newest live thread with that
+`project_id`, and creates one titled after the project if there is none. So if a session is reading
+the wrong shared context, `ptln thread attach` is not the fix — `ptln thread use` is.
+`ptln project show <id>` names the project's id, its repo, and the thread it resolves to.
+
+_Source: web/src/app/(marketing)/docs/context-threads/page.mdx (verified at 7c256f3a against thread.go, internal/api/client.go, web/src/lib/api/threads.ts, web/src/lib/api/projects.ts)_
+
+### Filing a plan does not start it
+
+**Finalize files the plan. Nothing runs.** Filing records the tree — it commits no machine, no
+worktree, no model spend and no pull request. Starting the work is a separate, deliberate act:
+**Start** on the [Build Board](/docs/runs#the-board), or `promote_work_item` from an agent (with
+`container: true` for an epic or feature, which runs its task leaves as one ordered chain).
+
+This matters most when an agent is the one doing the filing, because "I've filed the plan" and
+"I've started the work" are a single sentence apart and only one of them is true. An agent that
+finalizes a plan should say plainly that nothing has started yet, and where to read what landed, so
+the person can decide.
+
+_Source: web/src/app/(marketing)/docs/describe/page.mdx (verified at 7c256f3a against cg_mcp.go)_
+
+### Run mode — promoting to an `auto` project starts the work immediately
+
+Every machine decides, **per project**, whether work dispatched to it starts on its own. The
+setting lives in that machine's own local registry, and it has two values:
+
+- **`auto`** — a promoted run **starts immediately**, unattended. Nobody is asked.
+- **`ask`** — the run **queues** until someone approves it at that machine's `ptln daemon run`
+  console.
+
+**`auto` is the default**, because registering a directory is itself the affirmative act: `ptln
+daemon add-project` (or `ptln project setup`) is the machine's owner declaring that directory
+available for their team's agents to build in, and asking again at every run asks the same question
+twice. So on a machine set up the normal way, promoting a task is not queueing it for later — it is
+starting it, on someone's hardware, spending model budget, right now. Say that out loud before you
+promote on someone else's behalf.
+
+Change it with `set_run_mode` from an agent, or when you point a machine at a project from the web.
+One caveat worth knowing before you choose `ask`: the approval prompt renders only in a foreground
+`ptln daemon run` console or the mux banner — if the daemon runs as the always-on background
+service (the normal install), there is nowhere for the prompt to appear, and runs will sit waiting.
+
+_Source: web/src/app/(marketing)/docs/runs/page.mdx (verified at 7c256f3a against daemon.go, cg_mcp.go, cg_fleet_tools.go)_
+
+### Reference, not command — the control plane sends a label, never a path or an argv
+
+[Remote launch](/docs/parties#add-an-agent-from-the-web-remote-launch) (`ptln daemon`) lets the web
+start an agent on your machine. Its safety rests on one invariant: **the control plane only ever
+sends a project label, never a path or a command.** A label becomes a runnable command only inside
+the daemon, matched exactly against a registry you authored locally, and it launches only under the
+run mode you set for that project on that machine — `auto` (the default, because registering the
+directory was itself the consent) launches without asking; `ask` holds it for approval in the
+`ptln daemon run` console. The absolute path never leaves your machine. The device token is scoped
+to the daemon, separate from your login, and revocable. The spawned agent runs with read-only tools
+(`Read`/`Grep`/`Glob`). This is an MVP; a formal security review gates auto-launch and wider
+rollout.
+
+The same invariant covers dispatched runs. A run arrives as a reference — a project label, a thread,
+a list of task strings — and the daemon resolves the label against its local registry to get the
+working directory; no field of that reference is ever concatenated into a path or an argv fragment.
+The task text reaches the builder as data: it is written to a worklist file the builder reads with
+`--file`, so a task containing a newline and a flag cannot become a flag.
+`--dangerously-skip-permissions` is never emitted.
+
+_Source: web/src/app/(marketing)/docs/security/page.mdx (verified at 7c256f3a against daemon.go, run_profile.go)_
+
+### When crank applies, and when a party does
+
+Two different things run agents, and picking the wrong one is the difference between a branch and a
+conversation.
+
+**crank builds.** It takes work that is already specified and drives it, one task at a time, each in
+its own git worktree, all sharing one context thread — sequentially on purpose, so task *n* sees
+what task *n−1* recorded. It stops on its brakes (a task cap, a token budget, K consecutive
+failures, a per-task timeout) and leaves **branches**: `ptln work "<task>"` for a single task,
+`ptln crank --file backlog.txt` for a backlog, or a run dispatched from the board, which the
+[daemon](/docs/cli#remote-launch-ptln-daemon) picks up and runs as crank. Nobody has to be present,
+and crank will not ask you what you meant — an under-specified task produces a bad branch rather
+than a question, which is why [readiness](/docs/describe) is scored before work starts.
+
+**A [party](/docs/parties) decides.** It is a room, not a builder: people (on the web, in Slack, or
+from the CLI) and agents on their own machines, addressing each other in one conversation —
+directives, status, findings, hand-offs, a decision that needs several perspectives before anyone
+writes code. Planning is a party. Agents brought into one from the web run with **read-only** tools;
+the output is an agreement, and often a plan, not a diff.
+
+So: if you can already say what "done" looks like, that is crank. If the next thing needed is a
+decision, an interview, or another pair of eyes, that is a party — and its result becomes the tasks
+crank then builds.
+
+_Source: web/src/app/(marketing)/docs/software-factory/page.mdx (verified at 7c256f3a against crank.go, party_agent.go, work.go)_
+
+## Commands
+
+### ptln llms
+
+browse, run, and switch every local AI session in one terminal
+
+```
+ptln                    the front door — same as `ptln llms`
+ptln llms <id>...       open those sessions
+ptln llms --resume      reopen the set you had open last time
+ptln llms --roots       where it looks for sessions, and what each place holds
+ptln llms --look-in <dir>   also look under this HOME (a service account, a second login)
+```
+
+### ptln new
+
+start a fresh AI session
+
+```
+ptln new <claude|codex|gemini|opencode|goose|antigravity> [flags]
+```
+
+- `--thread <id>` — Attach the session to a context thread
+- `--worktree <name>` — Isolate it in its own git worktree
+- `--keep-going N` — Let the engine auto-continue up to N turns
+- `--goal <text>` — The done condition for --keep-going
+
+### ptln start
+
+host a shared shell and print a join link
+
+```
+ptln start [flags]
+ptln start -- <program>   share a specific program instead of your $SHELL
+```
+
+### ptln work
+
+run ONE task autonomously in a sandboxed worktree, then leave a branch
+
+```
+ptln work "<task>" [flags]
+```
+
+- `--worktree <name>` — Name the isolated worktree (alias: --wt)
+- `--thread <id>` — Attach the run to a context thread
+- `--engine <e>` — claude | codex | gemini | opencode | goose
+- `--model <m>` — Engine-specific model name
+- `--allow-bash` — Grant shell access (required by codex and goose)
+- `--timeout <dur>` — Wall-clock budget for the task, e.g. 20m
+
+### ptln review
+
+mark up a worked example and have the model rebuild it from your marks
+
+```
+ptln review <work-item-id> [flags]
+ptln review --serve                 host reviews at 127.0.0.1:7391/w/<id>
+```
+
+- `--version <n>` — Open a specific version instead of the latest
+- `--file <path>` — Mark up a local HTML file; iterate without saving anything
+- `--model <m>` — Model for the revision turn (runs on your own engine)
+- `--serve` — Host every work item's example on one local port (what the daemon runs)
+- `--port <n>` — Serve on a fixed local port (default: a free one)
+- `--no-open` — Print the URL instead of opening a browser
+
+### ptln crank
+
+run a backlog of tasks through the fleet, one branch each
+
+```
+ptln crank --file <backlog.txt> [flags]
+ptln crank --claim --run <id> --workers N     drain a run's tasks in parallel
+```
+
+- `--file <path>` — Worklist file, one task per line
+- `--literal` — Treat --file's value as the task text itself
+- `--thread <id>` — Attach every task to a context thread
+- `--run <uuid>` — Report task lifecycle to this run in the control plane
+- `--claim` — Fleet mode: claim tasks from the run store instead of a file
+- `--workers N` — Concurrent workers in claim mode
+- `--resume` — Continue a run, skipping tasks already done
+- `--restart` — Discard prior attempts and rebuild from the base branch
+- `--max N` — Stop after N tasks
+- `--max-tokens N` — Token ceiling; pauses for approval when reached
+- `--max-repairs N` — Auto-repair rounds allowed after a failed gate
+- `--halt-on-fail K` — Stop after K consecutive failures
+- `--timeout <dur>` — Per-task wall-clock budget
+- `--engine <e>` — Engine to build with
+- `--model <m>` — Model to build with
+- `--allow-bash` — Grant workers shell access
+- `--no-commit` — Leave changes uncommitted in the worktree
+- `--branch <name>` — Chain mode: every task builds on this one branch
+- `--base <name>` — Fork point and pull-request target
+- `--merge-policy <p>` — manual | pr | auto
+- `--draft` — Open pull requests as drafts
+- `--git-provider <p>` — Which host's CLI to speak (github)
+- `--land` — Merge train: land verified branches onto the base one at a time
+- `--visual` — Enable the visual verify lane
+- `--visual-routes <file>` — App paths for the visual lane to render
+- `--globals-file <path>` — Project rules injected into each worktree
+- `--grants-file <path>` — Credential grants for this run
+- `--skills-dir <path>` — Skills to materialise in each worktree
+
+### ptln plan
+
+the Planning agent: turn an idea into a scored, buildable work item
+
+```
+ptln plan ["<idea>"]
+ptln plan ls
+ptln plan show <thread-id>
+ptln plan rm <thread-id>
+```
+
+### ptln keepgoing
+
+let an engine auto-continue up to a hard turn cap
+
+### ptln daemon
+
+the always-on worker: run work this machine is asked to do
+
+- `ptln daemon start` — run the daemon in the foreground
+- `ptln daemon install` — install and start it as a system service
+- `ptln daemon status` — show whether it is running and what it is working on
+- `ptln daemon destinations` — list the directories this machine advertises
+- `ptln daemon add-project` — register a directory as a named project
+- `ptln daemon projects` — list the projects this machine serves
+
+### ptln project
+
+projects — the durable layer over threads
+
+- `ptln project ls` — list projects
+- `ptln project show` — show one project
+- `ptln project use` — set the current project
+
+### ptln peer
+
+peer consults — read-only Q&A with a teammate's agents
+
+### ptln state
+
+a JSON snapshot of this machine: account, daemon, sessions, rate limits
+
+### ptln models
+
+what the engines installed here can actually run
+
+### ptln thread
+
+shared context across people, machines, and engines
+
+- `ptln thread new` — create a thread
+- `ptln thread ls` — list threads
+- `ptln thread show` — print a thread's facts
+- `ptln thread connect` — wire an engine to a thread by default
+- `ptln thread disconnect` — unwire an engine
+- `ptln thread share` — share a thread with a team
+
+### ptln scribe
+
+distil this directory's newest session into durable facts, locally
+
+```
+ptln scribe [--thread <id>] [--session <id>] [--min-turns <n>]
+```
+
+### ptln skill
+
+the org skill library
+
+- `ptln skill push` — publish a skill directory
+- `ptln skill list` — list skills
+- `ptln skill pull` — fetch one
+- `ptln skill install` — install into an engine
+
+### ptln template
+
+reusable agent templates
+
+- `ptln template ls` — personas on your team
+- `ptln template show` — the full instruction one runs
+- `ptln template create` — author one
+- `ptln template rm` — remove one
+
+### ptln party
+
+humans and agents in one channel
+
+```
+ptln party            start a new party, or join a running one
+ptln party <link>     bring an AI agent into that party
+ptln party up         bring up a room of agents from partyline.yml
+ptln party context    switch a live party's persona or project
+```
+
+### ptln join
+
+join a shared session by link, or pick from your invitations
+
+```
+ptln join [link]
+```
+
+### ptln sessions
+
+list your live sessions
+
+### ptln summon
+
+bring a teammate or agent into the session you are hosting
+
+### ptln chat
+
+reach your projects from Telegram or Discord
+
+### ptln wt
+
+the isolated directories sessions and crank create
+
+- `ptln wt ls` — list worktrees
+- `ptln wt rm` — remove one
+- `ptln wt prune` — clear finished crank worktrees (dry run; --yes applies)
+
+### ptln login
+
+authenticate this machine against an instance (device flow) and pin its identity key
+
+```
+ptln login https://ptln.example.com   log in to that instance
+ptln login <url> --accept-new-key     re-pin after that instance's identity key changed
+ptln login                            refuses: there is no hosted partyline
+```
+
+- `--accept-new-key` — Accept an identity key that differs from the pinned one. Only after comparing the fingerprint in the refusal against `ptln server doctor` run ON that instance — that key is what decides who is joining your terminal
+
+### ptln setup
+
+connect this machine end to end: account, worker, engine, projects, memory
+
+- `--redo` — Re-ask everything; Enter keeps the current answer
+
+### ptln doctor
+
+check whether this repo can plan and run work, and name the fix for anything that can't
+
+### ptln logout
+
+remove this machine's saved token
+
+### ptln whoami
+
+show the logged-in account
+
+### ptln me
+
+your profile
+
+### ptln team
+
+your team: members, roles, invitations
+
+### ptln key
+
+API keys for CI, scripts and services
+
+### ptln notify
+
+notification preferences
+
+```
+ptln notify [ls|on|off|quiet]
+```
+
+### ptln settings
+
+every setting, its current state, and where to change it
+
+### ptln server
+
+install and check a self-hosted partyline box
+
+```
+ptln server install          install a self-hosted partyline on this machine
+ptln server install --dry-run  print the plan and stop, writing nothing
+ptln server doctor           which features this machine's environment configures, and this instance's identity fingerprint
+ptln server doctor --json    the same report, machine-readable
+ptln server bootstrap        the verified install plan for a self-hosted box (prints; never writes)
+```
+
+- `ptln server install` — preflight, print the plan, apply it asserting each step took effect, then verify the box serves. Safe to re-run
+- `ptln server doctor` — report each feature as configured / not-configured, naming the variables a not-configured one is missing
+- `ptln server bootstrap` — check docker, ports, disk, the stack files and required variables, then print the exact ordered install commands
+
+- `--json` — Machine-readable report (doctor, bootstrap)
+- `--site` — Public URL this box will serve (install)
+- `--dir` — Where the stack lives (install; default /opt/partyline)
+- `--bind` — Host interface to publish on (install; default 0.0.0.0)
+- `--http-port` — Host port for HTTP (install; default 80)
+- `--https-port` — Host port for HTTPS (install; default 443)
+- `--relay-port` — Host port for the relay (install; default 2222)
+- `--tls <mode>` — auto (default), acme, internal, or off (install)
+- `--no-caddy` — Don't run the edge — something else terminates TLS (install)
+- `--dry-run` — Print the plan and stop, writing nothing (install)
+- `--yes` — Don't prompt; take the flags and defaults as given (install)
+
+### ptln trigger
+
+inbound entry points — an address other software POSTs to, which starts work here
+
+```
+ptln trigger ls                          triggers on your team
+ptln trigger activity                    what they have DONE lately, by outcome
+ptln trigger log deploy-prod             one trigger's event log, by slug
+ptln trigger create "Deploy triage" --slug deploy-prod --project my-app --on failed
+ptln trigger set deploy-prod --on failed keeps the SAME key — no CI secret to rotate
+ptln trigger off deploy-prod             stop it firing, keep the address reserved
+```
+
+- `ptln trigger ls` — every trigger, what each acts on, and how many times it has fired
+- `ptln trigger activity` — the last N days broken down BY OUTCOME — 40 calls that started 0 runs looks healthy on a count alone and is not
+- `ptln trigger log <slug>` — one trigger's event log — every call, why nothing ran when nothing did, and the run id when one started
+- `ptln trigger targets` — machines you can run on, and the projects each advertises
+- `ptln trigger create <name>` — make one — prints the address and the key ONCE
+- `ptln trigger set <slug>` — fix one IN PLACE, keeping its key (create+delete mints a new key and costs a CI secret rotation)
+- `ptln trigger on <slug> / off <slug>` — start or stop it firing, keeping the address
+- `ptln trigger rm <slug>` — delete it — anything still calling starts getting errors
+
+- `--json` — Machine-readable output (ls, activity, log, targets, create)
+- `--days` — Window length for activity, 1-90 (default 14)
+- `--limit` — Rows for log, 1-200 (default 50)
+- `--key-only` — Print ONLY the key on stdout so it pipes: ptln trigger create ... --key-only | gh secret set K
+
+### ptln join-mcp
+
+add a party to the LLM session you're already in, and see what's still wired
+
+```
+ptln join-mcp '<party link>' [--name you] [--server name] [--scope local|project|user] [--print]
+ptln join-mcp status [--json]
+```
+
+- `ptln join-mcp status` — every party MCP registration on THIS MACHINE, grouped by the config file it lives in, with each party live, ended, or uncheckable. Reads only: removal is a command it prints. Exits 1 if any party has ended
+
+- `--name <you>` — the @name your session is addressed by in the party
+- `--server <name>` — MCP server name to register under (default partyline-party)
+- `--scope <s>` — claude mcp scope: local (this directory), project, or user
+- `--print` — print the setup for any tool instead of running `claude mcp add`
+- `--json` — machine-readable output (status)
+
+### ptln webhook
+
+outbound webhooks — where your team's events go
+
+### ptln upgrade
+
+update the CLI in place
+
+### ptln version
+
+print the version
+
+### ptln man
+
+the full manual
+
+### ptln help
+
+every command
+
+### ptln welcome
+
+the first-run introduction
+
+### ptln tray
+
+the menubar companion
+
+## The web control plane
+
+The optional web control plane is a work board. You file work at /work (or from
+the CLI), it queues, and the daemon on one of your own machines picks it up; /fleet shows those
+machines and what each is running, /runs and /runs/<id> show a run's live log and its gate verdicts,
+/threads holds the shared context, and /projects is the label that joins machines, runs and threads
+(the label resolves to a real path only on the machine itself).
+Nothing on the board executes anything by itself — a machine has to be running `ptln daemon` and to
+already know the project label locally.
+
+Pages, extracted from the App Router (marketing and docs pages omitted):
+
+- `/activate`
+- `/admin/onboarding`
+- `/admin/usage`
+- `/chains/[id]`
+- `/consults`
+- `/dashboard`
+- `/entities/[slug]`
+- `/fleet`
+- `/history`
+- `/invite/[token]`
+- `/j/[code]`
+- `/login`
+- `/org/[slug]`
+- `/organization`
+- `/p/[id]`
+- `/parties`
+- `/parties/new`
+- `/projects`
+- `/projects/[label]`
+- `/projects/[label]/setup/[partyId]`
+- `/projects/new`
+- `/runs`
+- `/runs/[id]`
+- `/runs/new`
+- `/session/[id]`
+- `/sessions-preview`
+- `/sessions/new`
+- `/settings/account`
+- `/settings/appearance`
+- `/settings/instance`
+- `/settings/integrations`
+- `/settings/notifications`
+- `/settings/profile`
+- `/settings/profile/email`
+- `/settings/skills`
+- `/settings/skills/[name]`
+- `/settings/team`
+- `/setup`
+- `/threads`
+- `/threads/[id]`
+- `/triggers/[id]`
+- `/work`
+- `/work/compare`
+- `/work/describe`
+- `/work/describe/live/[id]`
+- `/work/item/[id]`
+- `/work/new`
+- `/work/plan`
+- `/work/plan/[threadId]`
+- `/work/plan/project/[projectId]`
+- `/work/portfolio`
+- `/work/ship`
+
+## Values the API accepts
+
+- **run_status** — Where a run is in its lifecycle. The board's columns are derived from this, not stored.
+  Values: `queued`, `accepted`, `declined`, `running`, `needs_approval`, `paused`, `done`, `failed`, `killed`
+- **task_status** — The lifecycle of one task within a run. Reported by the worker, except `done`, which the control plane derives from a gate report.
+  Values: `queued`, `running`, `blocked`, `done`, `failed`
+- **pause_reason** — Why a run is paused. needs_approval means 'a human may be needed'; this says what for. Each reason has its own action set, and one of them has no actions at all.
+  Values: `budget`, `rate_limit`, `entitlement`, `quarantine`, `stall`
+- **preset** — What kind of job a run is. The daemon maps a preset to a fixed argv; no part of it is ever supplied by the control plane as a command.
+  Values: `spec`, `build`, `chat`, `describe`, `review`, `rebase`, `report`
+- **merge_policy** — What a completed, verified task does with its branch. The default proposes; it never pushes to a protected branch on its own.
+  Values: `manual`, `pr`, `auto`
+- **engine** — The AI CLI a job runs on. Models are free-form and engine-defined; the engine itself is a closed set, validated everywhere it is accepted.
+  Values: `claude`, `codex`, `gemini`, `opencode`, `goose`, `antigravity`, `llm`, `prime-agent`
+- **gate_verdict** — The verify gate's judgment on one task's branch. `skipped` is deliberately distinct from `pass`: a repo that configured no checks has not proved anything.
+  Values: `pass`, `pass_with_findings`, `fail`, `blocked`, `skipped`
+- **gate_code** — Why a gate lane produced the result it did. Every code carries a retry disposition, which is what lets the system retry a throttled provider without asking a human, and never retry a rejected diff.
+  Values: `ok`, `skipped`, `check.failed`, `check.timeout`, `check.baseline_red`, `reviewer.rejected`, `reviewer.unparseable`, `reviewer.timeout`, `reviewer.no_diff`, `visual.rejected`, `visual.no_renderer`, `readonly.mutated`, `provider.rate_limited`, `provider.timeout`, `provider.unavailable`, `engine.unknown`, `engine.launch_failed`
+
+## Scale of the surface
+
+214 HTTP endpoints, 88 web pages, 66 database tables, 43 commands.
+
+Full generated reference: `docs/reference/` in the repository.
+
+This document: https://partyline.sh/llms-full.txt (plain text, regenerated from source on every change).
+## Self-hosting partyline
+
+partyline runs on one box you own. There is no supported hosted-plus-agent split: the control
+plane is a docker compose stack, and the agents were always running on your machines anyway. This
+section is generated from the stack definition and the feature registry in the repository, so the
+service list and the variable names below are the ones the code actually uses.
+
+### The stack
+
+The control plane is a 10-service compose stack (`deploy/stack/docker-compose.yml`):
+
+- `postgres` — `postgres:16`
+- `keycloak` — `quay.io/keycloak/keycloak:26.7.1`
+- `postgrest` — `postgrest/postgrest:v12.2.3`
+- `redis` — `redis:7-alpine`
+- `web` — `${WEB_IMAGE:-docker.io/partyline/partyline-web:${WEB_TAG:-latest}}`
+- `relay` — `${RELAY_IMAGE:-docker.io/partyline/partyline-relay:${RELAY_TAG:-latest}}`
+- `ticker` — `busybox:1.36`
+- `minio` — `minio/minio:RELEASE.2025-09-07T16-13-09Z`
+- `minio-init` — `minio/mc:RELEASE.2025-08-13T08-35-41Z`
+- `caddy` — `${CADDY_IMAGE:-caddy:2-alpine}`
+
+partyline's own images are published on `ghcr.io/partyline-sh/` and are pulled, not built:
+nothing in the stack compiles on your box. Everything else is an upstream image.
+
+Database migrations are applied BY THE DEPLOY, not by hand: `deploy/stack/apply-migrations.sh`
+runs plain `psql` against the box's own Postgres before the containers are swapped. There is no
+migration CLI to install and no `db push` step — do not apply SQL yourself.
+
+Configuration is one file on the box, `/opt/partyline/.env`, mode 600. `deploy/stack/env.example`
+lists every variable; `scripts/env-bootstrap.sh` generates the derived secrets. After the box is
+up, `ptln server doctor` reports each feature below as configured or not, naming the variables a
+not-configured one is missing.
+
+### Features and the variables that turn them on
+
+A feature is CONFIGURED when EVERY variable in its block is set, and NOT CONFIGURED otherwise.
+Two states, no middle: leaving a block empty is a supported choice and that feature stays dark.
+Set only what you need — none of the blocks below is required for the stack to start.
+
+#### Operator console (`admin_console`)
+
+Unlocks the operator console at /admin for the listed email addresses.
+
+- Variables: `PARTYLINE_ADMIN_EMAILS`
+- Where to get it: your own account's email address — a comma-separated allowlist, not a credential.
+- Reference: `deploy/stack/env.example#admin_console`
+
+#### Discord bot (`discord`)
+
+Lets a Discord bot start and follow runs from a server channel.
+
+- Variables: `DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`
+- Where to get it: Discord Developer Portal → Applications → your app: Bot → Token, and General Information → Public Key.
+- Reference: `deploy/stack/env.example#discord`
+
+#### Transactional email (Resend) (`email`)
+
+Sends transactional email — invites, verification, run notifications. Without it those emails are silently not sent, so set it before inviting anyone.
+
+- Variables: `RESEND_API_KEY`, `RESEND_FROM`
+- Where to get it: Resend → API Keys. The from address must be on a domain you have verified in Resend.
+- Reference: `deploy/stack/env.example#email`
+
+#### GitHub App (`github_app`)
+
+Opens pull requests and reads repositories as an app rather than as a person's token.
+
+- Variables: `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY_B64`, `GITHUB_APP_SLUG`
+- Where to get it: GitHub → Settings → Developer settings → GitHub Apps → New GitHub App. The app id and slug are on its settings page; generate a private key there and base64-encode the downloaded .pem.
+- Reference: `deploy/stack/env.example#github_app`
+
+#### GitHub webhook (board reconciliation) (`github_webhook`)
+
+Moves a run's card to Shipped when its pull request is merged, and stops a merged pull request from blocking anyone else's merge gate. Without it, finished work sits in Review until a human accepts it by hand.
+
+- Variables: `GITHUB_WEBHOOK_SECRET`
+- Where to get it: your GitHub App's settings → Webhook: set the URL to <your site>/api/v1/git-hosts/github/webhook, subscribe to Pull requests, and put the secret you choose here. It is checked on every delivery; an unsigned request is refused.
+- Reference: `deploy/stack/env.example#github_webhook`
+
+#### Invite-only join assertions (`invite_assertions`)
+
+Signs the assertions that let an invited joiner prove an invite is genuine.
+
+- Variables: `PARTYLINE_ASSERT_KEY`
+- Where to get it: generate it yourself: openssl rand -base64 32.
+- Reference: `deploy/stack/env.example#invite_assertions`
+
+#### Authentication (generic OIDC) (`oidc`)
+
+Signs people in — the sign-in path for the whole control plane, so a box without it has no way for anyone to log in. The bundled Keycloak is configured automatically; set these to use your own provider (Authentik, Okta, Auth0, Entra) instead.
+
+- Variables: `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_ISSUER`
+- Where to get it: your IdP's admin console: register a confidential client for partyline, then take its issuer URL, client id and client secret. The redirect URI defaults to SITE_URL + /api/auth/callback and must be registered there too.
+- Reference: `deploy/stack/env.example#oidc`
+
+#### Redis (`redis`)
+
+Backs rate limiting and short-lived coordination state. The compose stack runs a redis service, so on a standard box this points at it.
+
+- Variables: `REDIS_URL`
+- Where to get it: the redis service in the compose stack — redis://redis:6379. No account anywhere.
+- Reference: `deploy/stack/env.example#redis`
+
+#### Relay (pppp.sh) (`relay`)
+
+Registers this box's relay so shared sessions can be joined from outside the LAN. The relay forwards ciphertext it cannot read.
+
+- Variables: `RELAY_ID`, `RELAY_SECRET`
+- Where to get it: generate both yourself: an id you choose, and openssl rand -base64 32 for the secret. They must match what the relay container is started with.
+- Reference: `deploy/stack/env.example#relay`
+
+#### Scribe (server-side distillation) (`scribe`)
+
+Lets the server distil a party's chat into durable facts on that party's context thread. On demand only (`ptln thread distill`), and each fact lands `proposed` — invisible to agents until a human accepts it. The party text is sent to the provider on this key, from your box.
+
+- Variables: `PARTYLINE_SCRIBE_KEY`
+- Where to get it: an API key for the model provider you want the scribe to use — Anthropic by default. A team can supply its own instead, in Settings → Team → Ambient capture.
+- Reference: `deploy/stack/env.example#scribe`
+
+#### Session key encryption at rest (`session_key_wrap`)
+
+Encrypts stored session keys at rest, so a database dump does not hand over live sessions.
+
+- Variables: `SESSION_KEY_WRAP`
+- Where to get it: generate it yourself: openssl rand -base64 32. Rotating it invalidates existing wrapped keys, so set it before first use.
+- Reference: `deploy/stack/env.example#session_key_wrap`
+
+#### Slack app (`slack`)
+
+Installs the Slack app so a channel can host a party and drive runs.
+
+- Variables: `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`
+- Where to get it: api.slack.com/apps → Create New App. Client id and secret are under Basic Information → App Credentials; the signing secret is on the same page.
+- Reference: `deploy/stack/env.example#slack`
+
+#### Object storage (S3 API — MinIO ships in the stack; R2/S3 by changing these four) (`storage`)
+
+Stores uploads and run artifacts in S3-compatible object storage.
+
+- Variables: `S3_ACCESS_KEY_ID`, `S3_BUCKET`, `S3_ENDPOINT`, `S3_SECRET_ACCESS_KEY`
+- Where to get it: Cloudflare R2 → your bucket → Manage R2 API Tokens for the key pair; the endpoint is https://<account-id>.r2.cloudflarestorage.com. Any S3-compatible provider works.
+- Reference: `deploy/stack/env.example#storage`
+
+#### Telegram bot (`telegram`)
+
+Lets a Telegram bot start and follow runs from a chat.
+
+- Variables: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
+- Where to get it: Telegram → @BotFather → /newbot for the token; the webhook secret is one you generate and pass to setWebhook.
+- Reference: `deploy/stack/env.example#telegram`
+
+#### Ticker (scheduled sweeps) (`ticker`)
+
+Authenticates the ticker container's minute-by-minute POST to /api/v1/tick, which reaps stale sessions and resumes rate-limited runs. Set it — without it the sweeps never run.
+
+- Variables: `TICK_SECRET`
+- Where to get it: generate it yourself: openssl rand -base64 32. The same value goes to the web service and the ticker service.
+- Reference: `deploy/stack/env.example#ticker`
+
+Never paste a value from someone else's box. Every secret above is either generated on your own
+machine or issued to you by the provider named next to it.
