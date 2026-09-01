@@ -1,0 +1,21 @@
+-- Conflict-aware review (Slice A). When a run finishes and opens its PR, the daemon test-merges that
+-- branch against every OTHER open PR to the same base (git merge-tree) and records the REAL conflicts
+-- here. The control plane then badges the card, banners the drawer, notifies the owner, and — the point
+-- — refuses to mark the draft PR ready until the human resolves or acknowledges, so two PRs that touch
+-- the same lines can't merge into a silent conflict.
+--
+-- pr_conflicts: array of the conflicting open PRs, snapshotted at PR-open. Shape:
+--   [{ "pr": 488, "branch": "ptln/…", "files": ["web/src/lib/api/work.ts"], "resolvable": true }]
+-- resolvable = we own the head branch (a partyline PR we can rebase). A human's PR is info-only
+-- (resolvable:false) — surfaced, but no one-click rebase. Null/[] = no conflict detected.
+--
+-- The PR number is ADVISORY: resolution always rebases onto latest main, so a stored conflict stays
+-- correct even after the referenced PR merges or closes (it just becomes a plain rebase-onto-main).
+--
+-- conflict_ack: the human chose "proceed anyway" — clears the merge gate for this run. Written by the
+-- run's owner through the conflict-ack endpoint (RLS ownership check, then service-role write).
+--
+-- Both null/false on existing rows, and nothing writes them until a conflict-reporting daemon
+-- (release-gated) exists — so this is inert on deploy.
+alter table public.run_tasks add column if not exists pr_conflicts jsonb;
+alter table public.run_tasks add column if not exists conflict_ack boolean not null default false;
