@@ -1,0 +1,20 @@
+-- NOTIFY PREFS: drop the event_type CHECK. It has broken saving twice and prevents nothing.
+--
+-- THE BUG. Settings → Notifications saved nothing. The form posts the WHOLE grid, and the server
+-- builds its upsert by iterating EVENTS (lib/api/notify.ts) — which now includes `run_started` and
+-- `agent_report` (#823). The constraint still allowed only ('work','session_invite','team_session',
+-- 'mention','digest'), so the batch violated the check, ONE failure rejected EVERY row, and not a
+-- single preference was written. The rows the user could actually see were all legal; the ones
+-- sinking the write were invisible to them.
+--
+-- This is the second time: 20260717000000 widened it for 'work' after the same failure. A constraint
+-- that must be hand-widened every time the product grows an event is a tripwire, not a safeguard —
+-- and the same disease as the heartbeat config allow-list that silently ate local_repos.
+--
+-- WHY DROPPING IS SAFE. The only writer is PATCH /api/v1/me/notifications, which enumerates EVENTS
+-- and writes nothing else — the app list is already the whitelist. RLS still pins every row to its
+-- owner (notify_prefs: own), and channel keeps its own check. What we lose is protection against a
+-- typo in a list that lives in TypeScript; what we gain is that adding an event can never again
+-- silently disable the settings page. The event vocabulary's source of truth is EVENTS in
+-- web/src/lib/api/notify.ts — deliberately one place, not two that must agree.
+alter table public.notify_prefs drop constraint if exists notify_prefs_event_type_check;
