@@ -1,0 +1,20 @@
+# Production edge. IDENTICAL to Caddyfile.staging except the hostname — that is the point: prod is a
+# replica of staging, and the only sanctioned difference between the two environments is .env plus
+# this one line.
+#
+# Any change here almost certainly belongs in Caddyfile.staging too. If the two drift, the thing
+# staging validates stops being the thing production runs.
+partyline.sh, www.partyline.sh {
+	handle_path /rest/v1/* {
+		reverse_proxy postgrest:3000
+	}
+
+	handle {
+		reverse_proxy web:3000 {
+			# Ride out the container swap — see Caddyfile.staging for the full reasoning.
+			lb_try_duration 30s
+			lb_try_interval 250ms
+			fail_duration 0
+		}
+	}
+}
