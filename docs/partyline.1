@@ -1,0 +1,702 @@
+.\" partyline(1) — man page. Rendered by `ptln man`; installed to man1 by the deb/rpm/cask.
+.TH PARTYLINE 1 "2026-08-30" "partyline" "partyline manual"
+.SH NAME
+partyline, ptln \- manage AI sessions, share context, share a terminal, run autonomous workers
+.SH SYNOPSIS
+.B ptln
+.RI [ command ]
+.RI [ options ]
+.br
+.B ptln
+.RB "\(em open the session manager"
+.br
+.B ptln new
+.I <claude|codex|gemini|opencode|goose|antigravity>
+.RB [ \-\-thread
+.IR id ]
+.RB [ \-\-worktree
+.IR name ]
+.RB [ \-\-keep-going
+.IR N ]
+.br
+.B ptln start
+.RB "\(em host a shared shell and print a join link"
+.PP
+.RB "(Installed as " partyline "; " ptln " is the short alias \(em use either.)"
+.SH DESCRIPTION
+One binary, four things:
+.TP
+.B Session manager
+Every Claude Code, Codex, Gemini, opencode, goose and antigravity session on this machine in one switchboard. Browse, search, and resume any of them here or in a new tab. Local; no account.
+.TP
+.B Shared context (Context Threads)
+An attributed memory your agents keep: decisions, constraints, and contracts, distilled from your sessions by \fBptln scribe\fR and kept current as agents work. Every agent partyline runs starts briefed, across tools and machines. Distilling runs locally; raw conversations never leave this machine.
+.TP
+.B Multiplayer terminal
+Your shell, shared live with people and agents over an end\(hyto\(hyend\(hyencrypted channel. Teammates join with one command, view\(hyonly until you grant the keyboard.
+.TP
+.B Autonomous workers
+Run a task, or a backlog, in a sandboxed git worktree, bounded and verified, leaving branches you review.
+.PP
+The session manager runs a local multiplexer: one terminal hosting N live sessions, cycled with a
+.B ctrl\-\e
+prefix. See
+.BR "IN A SESSION" .
+.PP
+.B There is no hosted partyline.
+partyline.sh is documentation; the application is one you run. Install one with
+.BR "ptln server install" ,
+or point this machine at an existing instance with
+.BR "ptln login " \fIurl\fR.
+.SH COMMANDS
+.TP
+.B ptln
+Open the session manager (same as \fBptln llms\fR). Arrows browse, / searches, Enter resumes, o opens in a new terminal tab, space marks several and m opens them together.
+.TP
+.B ptln new \fI<tool>\fR [dir] [flags]
+Start a fresh session \(em claude, codex, gemini, opencode, goose, or antigravity.
+.RS
+.IP \(bu 2
+.B \-\-thread \fIid\fR
+attach to a Context Thread; the agent gets recall/remember and the thread's context at launch.
+.IP \(bu 2
+.B \-\-worktree \fIname\fR
+run in an isolated git worktree on its own branch. With \fB\-\-thread\fR, parallel agents get isolated files and one shared memory.
+.IP \(bu 2
+.B \-\-with\-state
+carry the current checkout's uncommitted work into the new worktree.
+.IP \(bu 2
+.B \-\-no\-thread
+do not inherit the repo's bound thread.
+.IP \(bu 2
+.B \-\-keep\-going \fIN\fR [\-\-goal \fI"..."\fR]
+(claude) auto\(hycontinue up to N turns, or until the agent prints the done token. A hard cap.
+.RE
+.TP
+.B ptln start \fR[flags] [\-\- \fIprog\fR]
+Host a shared shell (your $SHELL) and print a join link. \fB\-\- \fIprog\fR shares a specific program instead. See SESSION FLAGS.
+.TP
+.B ptln join \fR[link]
+Join a shared session by link, or with no link pick from sessions you are invited to. View\(hyonly until the host grants typing.
+.TP
+.B ptln sessions
+List your live shared sessions.
+.TP
+.B ptln summon
+Bring a teammate or an agent into the session you are hosting.
+.TP
+.B ptln setup \fR[\-\-redo]
+Connect this machine end to end: account, always\(hyon worker, engine, code locations (they become scan roots), projects, pull requests, agent memory. One question per gap; finished steps are not re\-asked. Safe to re\-run. It runs after every successful \fBptln login\fR. On a pipe or in CI it prints a read\-only report instead of prompting. \fB\-\-redo\fR re\-asks everything, with Enter keeping the current answer. Per\-project diagnostics: \fBptln daemon doctor\fR.
+.TP
+.B ptln doctor
+Check whether this repo can plan and run work, and name the fix for anything that cannot. Read\-only. This is what error messages point at.
+.TP
+.B ptln thread \fR<subcommand>
+Context Threads \(em shared context across people, machines, and engines. Full help: \fBptln thread help\fR.
+.RS
+.IP \(bu 2
+.B new "<title>" \fR[\-\-share]
+create a thread; \fB\-\-share\fR makes it visible to your org.
+.IP \(bu 2
+.B remember \fIid kind\fR "<fact>" \fR[\-\-entities a,b] [\-\-supersedes #]
+record a fact. Kinds: overview, decision, constraint, contract, question, note.
+.IP \(bu 2
+.B recall \fIid\fR
+everything recorded on the thread.
+.IP \(bu 2
+.B bind \fR[id|\-\-clear]
+bind this repo to a thread via a checked\(hyin .partyline.json, so every \fBptln new\fR here attaches.
+.IP \(bu 2
+.B share \fIid\fR " / " unshare \fIid\fR
+share with your org, or make private again.
+.IP \(bu 2
+.B connect \fIengine\fR
+one\(hytime MCP wiring for codex, gemini and antigravity. Claude and codex also work per\(hyinvocation via \fBptln new \-\-thread\fR.
+.IP \(bu 2
+.B promote \fIid # project\fR
+promote a fact into a project's durable canon.
+.RE
+.PP
+A session resolves its thread automatically: an explicit \fB\-\-thread\fR wins, then the repo's checked\-in \fB.partyline.json\fR, then the repo's \fBorigin\fR remote matched against your registered projects. If none match and an agent RECORDS a fact, partyline creates a thread named after the repo, writes \fB.partyline.json\fR, and says so in the tool response \(em check that file in to share the thread. Creation happens only on a write, so opening sessions in ten repos does not make ten empty threads. \fBptln thread bind\fR is the explicit override.
+.PP
+On first run partyline offers to wire the context tools into every AI CLI it finds, naming the file each one writes. It never edits \fB~/.claude\fR, \fB~/.gemini\fR or their siblings without asking. The answer is remembered per engine; an engine installed later gets its own offer. \fBptln thread connect \-\-all\fR does it non\-interactively; \fBPARTYLINE_NO_CONNECT_PROMPT=1\fR suppresses the prompt.
+.TP
+.B ptln scribe \fR[\-\-thread \fIid\fR] [\-\-session \fIid\fR] [\-\-min\-turns \fIn\fR]
+Distil this directory's newest AI session into durable facts on its context thread. Runs locally; only the facts leave this machine.
+.TP
+.B ptln plan \fR[flags]
+The Planning agent. It interviews a rough idea \(em product, technical and UX decisions, one at a time \(em then decomposes it into a scored Epic / Feature / Task tree in the planning backlog. Runs the repo's registered engine locally on your own auth. Inside a registered repo it needs no flags: the project, and its umbrella if it has one, implies the thread, created on first use. \fB\-\-thread \fIid\fR overrides; \fB\-\-kind epic|feature|task\fR seeds the granularity; \fB\-\-quick\fR shortens the interview. \fB/quick\fR and \fB/deep\fR switch mid\(hyflight; \fB/done\fR and \fB/quit\fR exit. \fBshape\fR and \fBdescribe\fR are aliases.
+.TP
+.B ptln work "<task>" \fR[\-\-worktree \fIname\fR] [\-\-thread \fIid\fR] [\-\-allow\-bash] [\-\-engine \fIe\fR] [\-\-model \fIm\fR] [\-\-timeout 20m]
+Run ONE task autonomously in a sandboxed worktree, then leave a branch to review. Runs the repo's registered engine unless \fB\-\-engine\fR overrides (see ENGINES). Read/edit tools only; Bash is opt\(hyin. Never pushes \(em a human merges. See AUTONOMOUS WORKERS.
+.TP
+.B ptln crank \-\-file \fIbacklog.txt\fR \fR[\-\-thread \fIid\fR] [\-\-max \fIN\fR] [\-\-max\-tokens \fIN\fR] [\-\-halt\-on\-fail \fIK\fR] [\-\-engine \fIe\fR] [\-\-model \fIm\fR] [\-\-resume] [\-\-max\-repairs \fIN\fR]
+Drive a backlog one task at a time, one line per task, each in its own worktree, sharing one Context Thread. Blank lines and #\(hycomments are skipped unless \fB\-\-literal\fR. Halts on the cap, the token budget, or K consecutive failures; \fB\-\-resume\fR picks an interrupted backlog back up. \fB\-\-max\-repairs \fIN\fR bounds the repair loop \(em how many times a task the verify gate rejected goes back to the builder with the gate's findings before it quarantines for a human. Range 0\(en5, default 2; \fB0\fR quarantines on the first rejection. Out\(hyof\(hyrange values are ignored and the default stands. Prepares N branches for review; nothing is pushed or merged. Fleet mode claims board\(hydispatched tasks instead of a file: \fBptln crank \-\-claim \-\-run \fIid\fR [\-\-workers \fIN\fR]\fR.
+.TP
+.B ptln review \fI<work-item-id>\fR \fR[\-\-version \fIn\fR] [\-\-file \fIpath\fR] [\-\-serve] [\-\-port \fIn\fR]
+Mark up a worked example and have the model rebuild it from your marks. \fB\-\-file\fR marks up a local HTML file and saves nothing. \fB\-\-serve\fR hosts every work item's example at 127.0.0.1:7391/w/<id> \(em what the daemon runs.
+.TP
+.B ptln keepgoing \fR[status|off]
+Manage safe auto\(hycontinue. Arm it at launch with \fBptln new claude \-\-keep\-going N\fR, or mid\(hysession with \fBctrl\-\e g\fR.
+.TP
+.B ptln wt \fR[ls|rm \fIbranch\fR|prune]
+List or remove the isolated worktrees \fBptln new \-\-worktree\fR and crank create. Removal never touches the repo itself. \fBprune\fR clears the worktrees finished crank tasks left behind: a DRY RUN that lists what it would remove, applied with \fB\-\-yes\fR. It never deletes a branch and never removes a worktree with uncommitted changes. Also at \fBctrl\-\e w\fR.
+.TP
+.B ptln party \fR['link'] [\-\-name \fIn\fR] [\-\-role \fI"..."\fR] [flags]
+Start a new party, or bring an AI agent into a running one \(em a channel where people and agents coordinate (@name, @all, @any). Flags: \fB\-\-engine\fR claude|codex|gemini|opencode|goose|antigravity \(bu \fB\-\-model\fR \(bu \fB\-\-resume \fIid\fR (embody an existing local session) \(bu \fB\-\-clone\fR (fork this session in as a party member) \(bu \fB\-\-context\-file\fR (seed a briefing) \(bu \fB\-\-evidence\fR (grounded cited\(hyposition mode) \(bu \fB\-\-max\-agent\-turns \fIN\fR (agent\(hyto\(hyagent brake) \(bu \fB\-\-cmd\fR (run a custom command instead of an engine). \fBptln party up\fR brings up a room of agents from a partyline.yml. \fBptln party context\fR switches a live party's persona or project. The join link carries a party\(hyscoped token, so no login or MCP setup is needed. Each party has a shared working doc; agents propose edits and humans approve them on the web.
+.TP
+.B ptln join\-mcp \fR[link] | \fBstatus\fR
+Add a party to the LLM session you are already in, over MCP, so it can read and post. Posts go out under your partyline login if you have one; without one they read as an agent. \fB\-\-print\fR shows setup for non\(hyClaude tools.
+.IP
+\fBptln join\-mcp status\fR lists every party MCP registration on THIS MACHINE, not just this repo \(em they accumulate one per party, and \fB\-\-scope local\fR writes a per\(hydirectory entry you would otherwise never see. Grouped by the config file each lives in (\fB~/.claude.json\fR user and per\(hydirectory, \fB~/.gemini/settings.json\fR, \fB~/.codex/config.toml\fR, a project \fB.mcp.json\fR), with each party reported \fBlive\fR, \fBended\fR, or \fBuncheckable\fR. Ours are identified by the \fBPARTYLINE_PARTY_ID\fR they carry, never by server name, which is a flag. It reads only: removing a dead registration is a command it prints. It never prints a party token. Exit 1 if any party has ended, 0 otherwise \(em a party we could not reach is never called ended. \fB\-\-json\fR for the machine\(hyreadable form.
+.TP
+.B ptln peer \fR<approve|decline|cancel> \fIid\fR
+Peer consults. \fBapprove\fR prints a queued question and answers it with one read\-only turn on this machine's checkout. \fBdecline\fR frees the asker now instead of at the timeout. \fBcancel\fR withdraws a question YOU asked, so the peer's machine drops it. Agents ask with the \fBask_peer\fR MCP tool; \fBctrl\-\e p\fR is the inbox. See PEER CONSULTS.
+.TP
+.B ptln daemon \fR<subcommand>
+Let the web launch a grounded agent on this machine, in the right project directory, with one click. Confirm\(hyfirst: the control plane only ever sends a LABEL, never a path or a command. Subcommands: \fBenable\fR \(bu \fBdisable\fR \(bu \fBrun\fR (foreground, with an approve/deny console) \(bu \fBinstall\fR/\fBuninstall\fR (always\(hyon via launchd or systemd) \(bu \fBrestart\fR/\fBstop\fR \(bu \fBadd\-project \fIlabel\fR [dir] [\-\-preset spec|chat] [\-\-engine \fIe\fR]\fR \(bu \fBremove\-project\fR \(bu \fBrepos\fR \(bu \fBdestinations\fR \(bu \fBscan\-root add|rm|ls [dir]\fR \(bu \fBconsults\fR \(bu \fBdeliver\fR \(bu \fBprojects\fR|\fBstatus\fR|\fBls\fR \(bu \fBrequests\fR \(bu \fBkill \fIrun\fR \(bu \fBset\-github\-token\fR \(bu \fBprovision\fR [on|off|status] \(bu \fBautoupdate\fR [on|off] \(bu \fBstate\fR \(bu \fBdoctor\fR.
+.RS
+.IP \(bu 2
+.B repos
+the local git repositories this machine offers to the web (Settings \(-> Integrations \(-> Repository access \(-> Local directory). Scanned from your home directory, excluding hidden dirs, node_modules, managed clones and linked worktrees.
+.IP \(bu 2
+.B destinations
+the directories this machine will CLONE a web\-assigned project into: where you already keep repos, your scan roots, and \fB~/partyline\fR as a fallback. The clone uses this machine's own git credentials. An occupied directory is refused, never overwritten.
+.IP \(bu 2
+.B scan\-root
+advertise repositories from directories beyond your home, such as a /mnt/data mount. Owner\(hytyped local config; the web can never add one.
+.IP \(bu 2
+.B consults \fIlabel\fR [auto|ask]
+whether a teammate's read\-only question about this project is answered without asking you. DEFAULT AUTO \(em see PEER CONSULTS. \fBconsults \-\-all [auto|ask]\fR is the same switch for the whole machine; \fB\-\-all ask\fR outranks every project and takes effect with no restart.
+.IP \(bu 2
+.B deliver \fIlabel\fR [stage|submit]
+a landed peer answer is staged in your prompt unsubmitted by DEFAULT; submit is opt\-in.
+.IP \(bu 2
+.B autoupdate
+opt\-in self\(hyupdate, checking the version endpoint every 6h. The fleet page's "update now" sends a one\(hyshot nudge honoured under the same guards: service\(hymanaged, idle, newer\(hyonly, same public release.
+.RE
+.TP
+.B ptln project \fR[ls|new|setup \fR[\fIlabel\fR]|show \fIlabel\fR|tools \fIlabel\fR|doc \fIlabel\fR|env \fIlabel\fR]
+Projects \(em the durable layer over threads. List yours, create one, or show one with its machines, runs and threads. \fBdoc\fR edits the globals injected into every run on it; \fBenv\fR edits the deploy chain (staging=develop,prod=main).
+.IP
+\fBsetup \fR[\fIlabel\fR] sets THE CURRENT REPO up as a project in one step, from the terminal or from an LLM session \(em the same thing the \fBcreate_project\fR MCP tool does. It creates the project (label defaults to the directory name, adopting an existing project rather than duplicating one), gives it a context thread and pins that in \fB.partyline.json\fR for teammates who pull, and REGISTERS the directory in this machine's local registry. That registration is a GRANT: it declares the directory available to your team, so agents your teammates dispatch may build in it unattended. Undo it with \fBptln daemon remove\-project \fIlabel\fR. It refuses, naming the reason, for a directory that is not a git repository or has no \fBorigin\fR remote (a local path is not an identity \(em it means a different repo on another machine), and when the machine is not logged in.
+.IP
+\fBtools \fIlabel\fR edits the project's AGENT TOOL GRANTS \(em what a launched agent may use beyond the read/edit default. \fB\-\-role planning|build\fR selects the role, \fB\-\-allow\-shell "gh *"\fR / \fB\-\-revoke\-shell\fR edit shell command prefixes, \fB\-\-allow\-mcp \fIname\fR / \fB\-\-revoke\-mcp\fR edit MCP server names. Bare \fBtools \fIlabel\fR prints them. The \fBreview\fR role is not grantable: the verifier stays independent of the producer. Grants are data \(em an MCP name selects an entry from the RUNNING machine's own catalog (~/.partyline/mcp.json), and one with no local entry is skipped with a note; a shell prefix becomes an entry in the engine's own allowlist, never a shell string. Anything invalid is skipped, never widened. A change applies to the next launch or run; live agents keep the posture they started with.
+.TP
+.B ptln org \fR<subcommand>
+Manage your org's members, roles, and invites. Alias: \fBteam\fR. Roles: owner (members and billing), admin (invite and create projects), member (use). \fBptln org access <handle|email> full|viewer\fR sets a seat type: full can be granted typing, viewer is watch\-only. Picked up on the next join.
+.TP
+.B ptln skill \fR<push|list|pull|install>
+The org skill library. An Agent Skill is a \fB<name>/\fR directory with a \fBSKILL.md\fR \(em YAML frontmatter name and description, plus a markdown body \(em and optional scripts, references and assets. \fBpush \fIdir\fR packages the whole directory and creates a skill or a new version (caps: 5MB per file, 20MB and 200 files). \fBlist\fR shows name, version, enabled and description; \fBlist \-\-installed\fR scans this machine (\fB~/.claude/skills\fR, \fB~/.agents/skills\fR, the project's local dirs) for skills you can push. \fBpull \fIname\fR unpacks into \fB./<name>/\fR. \fBinstall \fR[\fIname\fR] unpacks into \fB~/.agents/skills\fR and links \fB~/.claude/skills\fR; bare installs all enabled ones. The daemon injects the org's enabled skills into every crank task's worktree (\fB.agents/skills\fR for any engine, \fB.claude/skills\fR for Claude) and names them in the worker's prompt. A bundled script runs only if that run's engine has bash enabled.
+.TP
+.B ptln template \fR<ls|show|create|rm>
+Reusable agent personas a trigger can run. See TRIGGERS AND TEMPLATES.
+.TP
+.B ptln trigger \fR<subcommand>
+Inbound entry points \(em an address other software POSTs to, which starts work here. See TRIGGERS AND TEMPLATES and \fBptln trigger help\fR.
+.TP
+.B ptln webhook \fR<ls|add|rm>
+Outbound: partyline POSTs to your URL when something happens here. Every delivery is signed with a secret shown once at creation. A webhook carries ids and links, never your content \(em a destination that needs the detail fetches it from \fB/api/v1/events\fR with its own key. Owners and admins only.
+.TP
+.B ptln key \fR<ls|create|revoke>
+API keys for things that are not people: CI, scripts, services. \fBcreate\fR prints the key once. \fBrevoke\fR stops it working and keeps the record, so you can see why it stopped. Owners and admins only.
+.TP
+.B ptln chat \fR[link|unlink] \fI<platform>\fR
+Connect Telegram or Discord so you can reach your projects from chat. Bare \fBptln chat\fR shows what is connected; \fBlink\fR prints a one\(hytime code to send to the bot. See CHAT.
+.TP
+.B ptln me \fR[set] " · " ptln notify \fR[ls|on|off|quiet]
+Your profile (name, handle, timezone); what partyline tells you about and where.
+.TP
+.B ptln settings
+The index of every setting and the command or page that changes it: account, this repo's thread bind, the MCP catalog, agent tool grants, the daemon's registered projects, the peer\(hyconsult and delivery policies with their effective state, engine wiring, and the surfaces that live only on the web. Read\(hyonly.
+.TP
+.B ptln models
+What the engines installed on this machine can actually run.
+.TP
+.B ptln state
+A machine\(hyreadable JSON snapshot of this box: account, daemon status, live sessions, whether anything is waiting on you, and any provider rate\(hylimit in effect. What the tray reads.
+.TP
+.B ptln welcome
+The front door: one door per next move \(em Enter resume the newest session \(bu n new session \(bu s share this shell \(bu p plan something \(bu / find a session. Bare \fBptln\fR shows it when you have no sessions yet. q/esc goes to the switchboard, or quits when there is nothing to switch to.
+.TP
+.B ptln tray \fR[on|off]
+The macOS menu\(hybar companion: live session roster, waiting\(hyon\(hyyou native notifications, daemon control, rate\(hylimit display, and the peer rows (a teammate's queued question with Approve/Decline, what this machine answered read\-only today, replies waiting for you). It starts automatically with the session manager or daemon. It holds no token, opens no socket and makes no HTTP call: every action shells \fBptln\fR. \fBon\fR adds it as a login item; \fBoff\fR opts out entirely (marker: \fB~/.partyline/tray.off\fR); bare prints status. macOS only.
+.TP
+.B ptln server install \fR[\fB\-\-site \fIurl\fR] [\fB\-\-dir \fIpath\fR] [\fB\-\-tls \fImode\fR] [\fB\-\-dry\-run\fR] [\fB\-\-yes\fR]
+Bring a self\-hosted partyline up on this machine, from this binary alone. Five phases, each allowed strictly less than the next: PREFLIGHT reads the machine and writes nothing, ever \(bu PLAN prints what will happen in order (\fB\-\-dry\-run\fR stops here) \(bu APPLY does it, asserting after every step that the step took effect \(bu VERIFY polls \fB/api/health\fR on the box, because a box can pass every step and still not serve a page \(bu REPORT says what was written and what to do next. Idempotent: stack files are rewritten only when their content differs, \fB.env\fR is only ever added to, and a re\-run on a healthy box is a no\-op that still verifies.
+.IP
+Flags: \fB\-\-site \fIurl\fR (the public URL this box serves; prompted if omitted), \fB\-\-dir \fIpath\fR (default \fB/opt/partyline\fR), \fB\-\-bind \fIaddr\fR (default \fB0.0.0.0\fR), \fB\-\-http\-port\fR (80), \fB\-\-https\-port\fR (443), \fB\-\-relay\-port\fR (2222), \fB\-\-tls \fImode\fR (\fBauto\fR default, \fBacme\fR, \fBinternal\fR, or \fBoff\fR), \fB\-\-no\-caddy\fR (something else terminates TLS), \fB\-\-dry\-run\fR, \fB\-\-yes\fR.
+.IP
+No public domain is the normal case and it works: with \fB\-\-tls auto\fR a name no public CA can issue for (an IP, a \fB.local\fR, a Tailscale name, a bare hostname) gets a certificate from Caddy's own CA \(em HTTPS works offline, and browsers warn until you trust that CA. Moving HTTP/HTTPS off 80/443 costs a Let's Encrypt certificate, which is validated on the public 80 or 443; \fB\-\-tls internal\fR needs nothing from the internet.
+.IP
+It is NOT web\-triggerable and must never be: it writes to a system directory and starts containers, which is the authority the reference\-not\-command invariant keeps out of the control plane's hands. Point a machine at the result with \fBptln login \fIurl\fR.
+.TP
+.B ptln server doctor \fR[\fB\-\-json\fR]
+Diagnostics for a partyline BOX \(em the machine running the web app and relay \(em not your laptop. It reads \fBfeatures.json\fR, the registry of which environment variables gate which feature, and reports every feature CONFIGURED or NOT CONFIGURED. Two states only: configured when every variable it requires is set (a value empty after trimming counts as unset), not configured otherwise, in which case the report names the missing variables and the next step. It only describes state. It prints variable NAMES and set/unset, never a value, so the output is safe to paste into an issue. It also prints this instance's identity fingerprint. \fB\-\-json\fR emits the same report machine\-readably. \fBdeploy/stack/env.example\fR is generated from the same registry, so the two cannot disagree, and a malformed registry fails loudly rather than reporting every feature off.
+.TP
+.B ptln server bootstrap \fR[\fB\-\-json\fR]
+The verified install plan for a self\-hosted box, for running the steps by hand. It checks docker and the compose v2 plugin at a supported version, a reachable docker daemon, the stack's published ports (80, 443, 2222), free disk, whether \fBdeploy/stack\fR is on this machine, and which required variables are unset \(em then prints the exact ordered commands that bring the stack up. Every path it names is one it confirmed exists; it fetches nothing from a URL. It is a reference, not an installer: it never writes \fB/opt/partyline/.env\fR, never generates a secret into place, never runs \fBdocker compose\fR, never touches the database. Like \fBserver doctor\fR it prints names and set/unset, never a value. Exit 1 when a prerequisite is missing; the plan is still printed. \fB\-\-json\fR for the machine\(hyreadable form.
+.TP
+.B ptln login \fR[\fIurl\fR] [\fB\-\-accept\-new\-key\fR]
+Authenticate this machine with a control plane, by device flow.
+.IP
+\fBWith no URL it refuses\fR, because there is no hosted partyline to log in to. It names the two commands that work: \fBptln login \fIurl\fR for an existing instance, \fBptln server install \-\-site \fIurl\fR to run one here.
+.IP
+The URL is a POSITIONAL argument, not a flag; there is no \fB\-\-api\fR. Logging in to an instance PINS that instance's identity key on this machine and prints the fingerprint. If the instance later presents a different key, login REFUSES and prints both fingerprints rather than trusting the new one: that key is what your machine uses to decide who is joining your terminal. Compare it against \fBptln server doctor\fR run ON that instance, and only then re\-pin with \fB\-\-accept\-new\-key\fR. Every successful login runs \fBptln setup\fR.
+.IP
+For every other command in the same shell: \fBexport PARTYLINE_API=\fIurl\fR.
+.TP
+.B ptln logout | whoami
+Remove this machine's saved token; show the logged\-in account.
+.TP
+.B ptln upgrade | version
+Update to the latest release; print the version, and whether a newer one is out.
+.TP
+.B ptln man
+Show this manual. \fB\-\-raw\fR emits the roff source; \fBinstall\fR copies it into your man path.
+.SH SESSION FLAGS
+Flags for
+.BR "ptln start" .
+.TP
+.B \-\-invite\-only
+require a partyline account to join (default). \fB=false\fR allows anonymous view\-only joiners.
+.TP
+.B \-\-open
+guests can type immediately. Default: view\-only until granted.
+.TP
+.B \-\-allow \fI<users>\fR
+comma\(hyseparated GitHub usernames allowed to join.
+.TP
+.B \-\-invite \fI<targets>\fR
+comma\(hyseparated email addresses and/or teammate \fB@handles\fR to invite the moment the session opens. A handle is delivered over that teammate's notify preference \(em Slack DM if they opted in, otherwise email. The line it prints names who was actually REACHED, calling out separately anything that resolved to nobody and anything that resolved but was not delivered. Neither is ever counted as sent. In\(hysession, \fB/pinvite <email|@handle>\fR does the same for one target.
+.TP
+.B \-\-announce
+with \fB\-\-team \fIslug\fR: post the join code to that team's connected Slack channel.
+.TP
+.B \-\-insecure\-any\-key
+accept any ssh key without identity checks. Trusted LAN only.
+.TP
+.B \-\-port \fI<n>\fR
+ssh port joiners connect to (default 2222).
+.TP
+.B \-\-relay \fI<host:port>\fR
+relay to use. The default is the relay your instance registers; \fB''\fR disables the relay. \fBPARTYLINE_RELAY\fR sets it for the shell.
+.SH IN A SESSION
+Inside the mux, the
+.B ctrl\-\e
+prefix (press it, then a key):
+.TP
+.B \(->/\(<- \fRor\fB 1\-9
+switch between live sessions.
+.TP
+.B n
+new / run \(em start a session (engine, thread, worktree, keep\-going), run an autonomous task, or crank a backlog.
+.TP
+.B c
+context \(em record a fact, view the shared context, attach or switch a thread, bind the repo, share.
+.TP
+.B m
+MCP \(em wire or unwire MCP servers for this session. Your catalog is ~/.partyline/mcp.json; partyline's own servers are pinned.
+.TP
+.B w
+worktree \(em fork this session into a parallel worktree (optionally carrying uncommitted work; it inherits thread and MCPs), or list and remove worktrees.
+.TP
+.B p
+peer \(em ask a teammate's agent a read\-only question, read the questions and replies waiting for you, and withdraw an ask. See PEER CONSULTS.
+.TP
+.B g
+keep\-going \(em arm or disarm auto\(hycontinue on this session.
+.TP
+.B s
+share \(em broadcast this session view\-only over the relay, or open a shared terminal tab.
+.TP
+.B [
+scroll back through this session's history. Not available while split.
+.TP
+.B |
+split \(em divide this tab into two side\(hyby\(hyside panes. See SPLIT VIEW.
+.TP
+.B ?
+open the command menu.
+.TP
+.B "o  x  q"
+open the manager \(em close this session, or in a split the focused PANE \(em quit the mux. While the tab SELECTOR is up, \fBx\fR closes the HIGHLIGHTED tab without switching to it and the selector stays open, so you can arrow across the ribbon and prune several in one pass.
+.PP
+Host and guest keys inside a shared session: \fBw\fR who is on the line \(bu \fBg\fR grant or open guest typing (host) \(bu \fBr\fR request control (guest) \(bu \fBh\fR session HUD \(bu \fBl\fR lock joiners (host) \(bu \fBd\fR leave \(bu \fBq\fR end (host). At a shell prompt the typed forms also work \(em \fB/pwho\fR, \fB/phud [on|off]\fR, \fB/pgrant [name]\fR, \fB/pinvite <email|@handle>\fR, \fB/plock\fR, \fB/pexit\fR, \fB/phelp\fR \(em but not inside full\(hyscreen apps.
+.PP
+The
+.B ctrl\-\e
+prefix works even inside full\(hyscreen apps such as vim and claude. Press it twice to send a literal
+.BR ctrl\-\e .
+While the prefix is armed a dim panel above the tab bar lists every command that will fire, and the right end of the status bar carries a mode pill \(em LIVE, CHORD, SELECT, SPLIT or SETUP \(em with the keys live in that mode. Tab markers: a telephone glyph means attached to a context thread (cyan = agent wired, dim = record\(hyonly); a filled circle means shared live over the relay.
+.PP
+The shared terminal is sized to the SMALLEST connected screen, so everyone sees the same thing without wrapping or redraw artifacts. A joiner with a small window shrinks the whole session; resize and it resizes live.
+.PP
+In the session list: arrows move \(bu \fB/\fR search \(bu \fBs\fR cycle sort (last\(hyused, oldest, project) \(bu \fBR\fR refresh \(bu \fBp\fR pin \(bu \fBx\fR archive \(bu \fBa\fR reveal \(bu Enter resume here, picking a permission mode (default, accept\-edits, plan, bypass, custom) \(bu \fBo\fR open in a new tab (tmux, iTerm2, WezTerm, kitty, GNOME Terminal, Konsole). The right pane shows location, git branch, tokens, span, uncommitted count, model and a preview. \fBptln llms ls [\-\-all]\fR is the flat list; \fB\-\-all\fR includes agent sessions. \fBptln llms prune\fR reports sessions whose worktree is gone (\fB\-\-apply\fR drops them from the list and deletes nothing on disk). \fBptln llms resume \fIid\fR resumes one; \fBptln llms \-\-resume\fR reopens the set you had open last time, each with the same model and permission level. It indexes claude, codex, gemini and antigravity stores, plus the \fBllm\fR CLI if installed, reading each tool's own files. Nothing leaves this machine. The mouse stays native.
+.SH SPLIT VIEW
+Two sessions side by side in ONE tab: exactly two panes, divided vertically, under a single full\(hywidth status bar. There is no horizontal split and no third pane.
+.TP
+.B ctrl\-\e |
+open a split. It starts EMPTY, with a session manager in each pane, and the pane titles are the instructions \(em "(1) pick the left session", then "(2) then the right". \fBesc\fR cancels. Once both are filled the pair is BOUND and occupies ONE slot on the tab ribbon, so \(-> /\(<- and 1\-9 treat it as a single tab.
+.TP
+.B ctrl\-\e tab
+move focus between the panes (\fBctrl\-\e i\fR does the same). The focused pane's title is pink; the other is dimmed.
+.TP
+.B ctrl\-\e z
+zoom the focused pane to full width, and again to go back. The pair stays bound.
+.TP
+.B ctrl\-\e x
+close the FOCUSED pane. This is the only way to unbind a pair: the slot collapses to a single full\(hywidth tab holding the other session, and the closed pane's session keeps running as its own tab.
+.PP
+Every other prefix command goes to the FOCUSED pane. Switching to another tab parks the split; the binding, the focus and the zoom are remembered.
+.SH PEER CONSULTS
+Read\-only Q&A between your agents and a teammate's. Your agent asks for a second opinion \(em "does this API change break your callers?" \(em and the answer comes back labelled UNTRUSTED. The peer's agent answers on THEIR checkout, read\-only: it cannot write a file or run a command.
+.TP
+.B ctrl\-\e p
+the inbox: ask a peer, read the questions and replies waiting for you, and withdraw an ask that is still out. The question field is MULTI\(hyLINE, because the text people send is pasted out of an LLM discussion: a bracketed paste arrives whole, newlines and all, and a newline does not submit. \fBEnter\fR inserts a newline \(bu \fBctrl\-d\fR sends \(bu \fBctrl\-e\fR opens \fB$EDITOR\fR and reads it back \(bu \fBctrl\-u\fR clears \(bu \fBesc\fR abandons. It counts characters live against the 32,000 limit and refuses an over\(hylong question locally, naming what to trim.
+.TP
+.B MCP tools
+on the \fBpartyline\-context\-threads\fR server (auto\(hywired for claude and codex): \fBlist_peers\fR \(em which machines you can ask, and which project labels each answers about \(bu \fBask_peer \fItarget project_label question\fR \(em ask ONE machine about ONE of its projects; it waits up to 45s, then hands back a CONSULT ID rather than holding the tool call open \(bu \fBcheck_consult \fIconsult_id\fR \(em collect an answer that landed after that. Call it once, minutes later, not in a loop. Consults expire about 10 minutes after they are asked.
+.TP
+.B ptln peer approve \fIid\fR
+answer a queued question with one read\-only turn on this machine's checkout. It prints the question first \(em the daemon requires a digest of the text that was DISPLAYED, so approving a question nobody read is not possible.
+.TP
+.B ptln peer decline \fIid\fR
+decline it, freeing the asker now instead of at the timeout.
+.TP
+.B ptln peer cancel \fIid\fR
+withdraw a question YOU asked. Scoped to the asker server\(hyside, so a consult that is not yours is indistinguishable from one that never existed, and the target of a question can never cancel it \(em they have \fBdecline\fR. It is the one way an ask stops being answerable before the 10\(hyminute window closes: the peer's daemon drops it from its pending set and \fBapprove\fR then fails with "withdrawn" instead of burning a read\-only turn. An answer turn already running is left to finish and its answer discarded. Cancelling one already answered, declined or timed out is a no\-op that reports the real state.
+.TP
+.B the tray (macOS)
+shows queued questions with Approve/Decline, what this machine answered today, and replies waiting for you. Its notifications carry NAMES AND COUNTS ONLY, never question or answer text \(em banners land on lock screens and in system logs.
+.SS Auto\-answer is ON by default
+Consults are answered AUTOMATICALLY within a daily budget. A human is asked only when the budget is spent, or when auto\-answer is switched off \(em not question by question. A teammate in your org can therefore cause this machine to run a read\-only engine turn on your checkout, using your tokens, without asking you. The bounds: the turn is read\-only, enforced by the engine posture rather than by convention; the question is capped at 32,000 characters, enforced in one place server\-side; only members of your org can ask; and it is capped per day, past which questions QUEUE for your approval rather than being dropped. Every consult leaves a durable row.
+.SS The budget
+Default: 24 auto\-answers per project per day, plus 48 for the whole machine across every project it advertises. The per\-project number is a PROJECT SETTING edited once in the web app (project settings, "auto\-answer allowance", \fBprojects.consult_auto_daily\fR), honoured by every machine advertising that label. Blank means the built\-in default; \fB0\fR means never auto\-answer in this project.
+.PP
+The CAP is project\(hywide but the SPEND is counted PER MACHINE: each daemon keeps its own daily ledger, so three machines in a project capped at 24 can answer 72 between them.
+.PP
+The value rides down to the daemon on the consult event and the daemon RE\-VALIDATES it, clamping DOWNWARD only: to \fBPARTYLINE_CONSULT_AUTO_DAILY\fR if that is set on the answering process, and in any case to the compiled hard ceilings of 200 per project and 400 per machine. Nothing arriving over the network can raise this machine past its own ceiling, and an unusable value falls back to the default rather than to unlimited. The policy gate runs BEFORE the budget, so no cap value can override a persisted OFF.
+.PP
+Turn it off for THIS WHOLE MACHINE with \fBptln daemon consults \-\-all ask\fR. That is a persisted local setting the answering process re\-reads on every question, so it takes effect immediately \(em including for the always\(hyon service \(em with nothing to restart, and it outranks every project's setting, including projects added later. Read it back with \fBptln daemon consults \-\-all\fR or \fBptln settings\fR. Turn it off for one project with \fBptln daemon consults \fIlabel\fB ask\fR.
+.SS Auto\-submit is OFF by default
+The read\-only guarantee protects the machine ANSWERING a question, not the machine that asked. Your own session has whatever tools it was launched with, which for a coding session is write and shell. With \fBdeliver=stage\fR (the default) a landed answer is pasted into the asking session's prompt UNSUBMITTED and needs your Enter. With \fBdeliver=submit\fR, a teammate's text becomes a prompt in a tool\(hybearing agent with no human reading it first \(em and the "untrusted" label is a convention the model is asked to honour, not an enforcement boundary. Opt in per project with \fBptln daemon deliver \fIlabel\fB submit\fR.
+.PP
+Both machines need \fBptln daemon\fR running and the project registered with \fBptln daemon add\-project\fR: a question can only be addressed to a label a machine advertises. The cross\(hymachine flow has not been exercised end\(hyto\(hyend on two separate machines.
+.SH MCP TOOLS
+The
+.B partyline\-context\-threads
+server carries partyline into an agent. It is wired automatically for claude and codex by \fBptln new \-\-thread\fR; gemini and antigravity need a one\(hytime \fBptln thread connect \fIengine\fR.
+.TP
+.B recall \fR[entity]\fB, read_context
+the thread's current shared context. \fBrecall\fR takes an optional entity slug to return only the facts about one thing; \fBread_context\fR is the whole feed.
+.TP
+.B remember
+record ONE durable cross\(hyseam fact: kind \fBoverview|decision|constraint|contract|question|note\fR, 1\(en3 entity anchors (a bare slug, or a typed \fBfile:\fR/\fBdir:\fR/\fBpkg:\fR/\fBsymbol:\fR/\fBconcept:\fR anchor), and \fBsupersedes\fR to replace an existing block rather than contradict it.
+.TP
+.B create_project \fR[label]
+set the repo the session is in up as a partyline PROJECT, without the web app. It creates the project (label defaults to the directory name), gives it a context thread and pins that in \fB.partyline.json\fR, rebinds the LIVE session to it so planning works with no restart, and REGISTERS the directory in this machine's local registry. That last step is a grant: it declares the directory available to the team, and dispatched agents may build in it unattended. The tool says so, with the undo (\fBptln daemon remove\-project \fIlabel\fR). A repo the org already has a project for is ADOPTED, never duplicated. Refuses, with the reason, for a directory that is not a git repository, one with no \fBorigin\fR remote, or a machine that is not logged in. Same as \fBptln project setup\fR.
+.TP
+.B propose_work_item\fR, \fBplan_file_tree
+file backlog items into the thread's planning tree: one Epic/Feature/Task at a time (with \fBparent_id\fR to nest), or a whole decomposition in one call. The server enforces the 3\(hylevel cap; only a task at readiness \(>= 4 can be started without a force.
+.TP
+.B send_to_partyline
+send work to the backlog to be BUILT \(em one task, or a whole epic, feature and task decomposition, promoted as a CHAIN with each task landing its own reviewable branch.
+.IP
+IT MAY COME BACK WITH QUESTIONS INSTEAD OF FILING. An underspecified task produces a confident, wrong diff, so the server checks four things it can verify: the project exists, there is a COMMAND that proves the work is done, the task fits one session, and there is a spec beyond the title. Anything missing comes back as the exact question to put to you. The checks are structural: writing more prose does not satisfy them. Readiness is DERIVED from those facts rather than asserted by whatever wrote the item.
+.IP
+In a registered project the thread is resolved automatically. Tickets from a tracker go through \fBimport_work_item\fR instead, which opens a planning session rather than filing a task.
+.TP
+.B import_work_item
+bring ONE item from your own tracker (Jira, Linear, Productboard, GitHub, a spreadsheet \(em anything the model can read) onto the board. partyline holds no tracker credentials and learns no tracker API: the model is the integration. Keyed on \fBsource_tool\fR plus \fBsource_id\fR, so re\-importing a roadmap UPDATES matching items rather than duplicating them. Items land in \fBplanning\fR: on the board, unshaped, with no machine committed. See \fBhttps://partyline.sh/docs/import\fR.
+.TP
+.B list_sessions\fR, \fBask_session \fIsession\fR \fIquestion\fR
+ask ANOTHER LIVE SESSION on this machine, by name, and get the answer from that running conversation. \fBlist_sessions\fR gives the exact name to address. The answer comes from the target's warm context, so it can tell you things no fresh process could reconstruct \(em prefer it over \fBask_peer\fR for anything local, since a peer consult needs a teammate's consent and answers from a cold session. The target is asked to ANSWER, not to act; if it is mid\(hyturn this waits briefly, then reports it busy rather than interrupting.
+.TP
+.B capabilities
+what THIS session can do: its tools, the shell commands and MCP servers granted for the project, and their scope limits. Call it instead of guessing at your own reach, and again if a human says you should be able to do something you think you cannot \(em grants can change mid\(hyconversation.
+.TP
+.B list_peers\fR, \fBask_peer\fR, \fBcheck_consult
+peer consults. See PEER CONSULTS.
+.TP
+.B read_run \fIrun\-uuid\fR
+diagnose a run without a browser: status, preset, engine and model, merge policy, timestamps, token spend, wall time, and every task's idx, title, status, branch and PR, plus the plan item it came from and its position in a chain. A run with no task rows and zero tokens never started. Read\(hyonly.
+.TP
+.B read_run_log \fIrun\-uuid\fR \fR[\fItail\fR]
+the tail of that run's step output. Default 200 lines, \fItail\fR clamped at 1000, byte\(hycapped at 64 KB with an explicit truncation marker. Secrets are redacted line by line, and the body is fenced and labelled UNTRUSTED: it is raw third\(hyparty build output and may contain text shaped like instructions.
+.TP
+.B setup_read\fR, \fBsetup_write \fR[instance_name] [allow_signups]
+\fBsetup_read\fR reports what THIS instance still needs: every setup step with its state (done, todo, blocked), what to do about it, which step is next, and whether it is set up at all. Recomputed every call, never a "finished" flag. \fBsetup_write\fR names the deployment and opens or closes signups \(em the two things the app may change about itself; everything else is .env plus a restart. Instance\-admin only: the first account to sign in owns the instance, and anyone else is told so.
+.PP
+Both run tools need this machine logged in (\fBptln login \fIurl\fR), issue GETs only, and accept nothing but a run UUID \(em there is no generic "fetch a URL" tool, so a model cannot steer them at another endpoint. A run you are not entitled to see is reported identically to one that does not exist.
+.SH TRIGGERS AND TEMPLATES
+.B ptln trigger
+creates and manages inbound entry points: an address other software POSTs to, which starts work here \(em a failed deploy, a support ticket. Subcommands: \fBls\fR, \fBactivity\fR, \fBlog <slug>\fR, \fBtargets\fR, \fBcreate\fR, \fBset\fR, \fBon\fR, \fBoff\fR, \fBrm\fR. You choose the project, the machine and what is asked; the caller supplies only data about what happened, and that text reaches the agent fenced and labelled untrusted.
+.PP
+\fBcreate\fR prints the address and the key ONCE. \fBset <slug>\fR fixes a trigger IN PLACE keeping the same key; create\(hyplus\(hydelete mints a new key and costs a CI secret rotation. \fBoff\fR stops it firing and keeps the address reserved; \fBrm\fR deletes it and anything still calling starts getting errors.
+.PP
+\fB\-\-key\-only\fR puts the key on stdout and everything else on stderr, so it pipes: \fBptln trigger create \(el \-\-key\-only | gh secret set PARTYLINE_KEY\fR. The secret goes process to process \(em never into a transcript, a model's context, or a clipboard.
+.SS Triggers on a clock
+\fB\-\-cron '<expr>'\fR on \fBcreate\fR or \fBset\fR puts a trigger on a five\(hyfield cron schedule (\fB'0 3 * * *'\fR, \fB'*/30 * * * *'\fR, \fB'0 9 * * mon\-fri'\fR), read in your TEAM'S time zone rather than the box's. With no \fB\-\-cron\fR the trigger fires only when something POSTs to it.
+.PP
+Scheduling supplies the WHEN and nothing else. A scheduled fire goes through the same path an inbound call does \(em same project, machine, preset, merge policy and gate \(em so a clock grants no authority a webhook did not already have. A window MISSED while a machine was down fires ONCE on recovery and then rejoins the future; eight hours down does not mean sixteen queued runs. A fire is SKIPPED, with the reason recorded in \fBptln trigger log\fR, while the trigger's previous run is still open, so a nightly job never stacks on itself.
+.PP
+\fB\-\-cron ''\fR removes the schedule and leaves the address. \fB\-\-schedule pause\fR stops the clock without closing the address; \fB\-\-schedule resume\fR re\(hyarms it from now rather than firing everything missed. An expression the server cannot parse is REFUSED, not stored.
+.SS Agent templates
+\fBptln template\fR authors a reusable persona: who the agent is and what it is for. \fBls\fR, \fBshow\fR, \fBcreate\fR, \fBrm\fR. Attach one with \fB\-\-template <name>\fR on \fBptln trigger create\fR or \fBset\fR; an empty value detaches it. One template, many triggers.
+.PP
+The template and the trigger COMPOSE. The template says WHO the agent is and carries no \fB{{fields}}\fR. The trigger's task says WHAT JUST HAPPENED and renders the caller's payload. The persona comes first, and the payload keeps its fence: the template is team\(hyauthored and trusted, the payload is written by whoever fired the webhook and is not.
+.PP
+\fB\-\-task\fR is optional when a template is attached; with no inline task the persona runs against the caller's WHOLE payload, rendered field by field and fenced as untrusted. One of \fB\-\-task\fR or \fB\-\-template\fR is required.
+.PP
+A template is a DRAFT until \fB\-\-approve\fR. A trigger pointing at a draft falls back to its own inline task rather than running an unfinished instruction.
+.PP
+\fB\-\-stop\-when\fR (alias \fB\-\-refuse\-when\fR) records when the agent must REFUSE. An unattended agent given no instruction to stop improvises around a missing precondition instead of saying so. Both \fB\-\-body\fR and \fB\-\-stop\-when\fR take \fB@FILE\fR.
+.PP
+\fBptln template rm <name>\fR removes one outright. Triggers pointing at it are NOT deleted \(em they fall back to their own inline task, and the command names which ones just did.
+.SS Trigger activity
+\fBptln trigger ls\fR carries the headline: what each trigger acts on and how many times it fired. \fBptln trigger activity\fR breaks the same window down BY OUTCOME \(em a trigger firing forty times and starting nothing looks healthy on a count alone and is not. \fB\-\-days\fR sets the window (1\(en90, default 14), \fB\-\-json\fR makes it parseable. \fBptln trigger log <slug>\fR prints one trigger's event log by slug: every call, why nothing ran when nothing did, and the run id when one started. \fB\-\-limit\fR goes to 200.
+.PP
+The web dashboard shows the same two directions as stacked timelines on a shared axis: INBOUND (triggers) and OUTBOUND (webhooks). A failure inbound means WE chose not to act; outbound it means THEIR endpoint is down. Shading inside a trigger's layer is the outcome: solid where a call started a run, fainter for accepted, not acted on, duplicate, disabled. Nothing needs registering, and a trigger that has never fired stays listed.
+.SH WHEN AN AGENT ACTS WITHOUT YOU
+A run a TRIGGER started announces itself as \fBrun.started\fR the moment it begins. Every other run event describes something already finished; this one describes the only window in which you can still say no, so its email is a floor you cannot mute. Slack stays opt\(hyin. A run you enqueued yourself sends nothing here.
+.PP
+When such a run FINISHES it lands in the board's Blocked lane reading \fBNeeds your eyes\fR, not in Shipped. Nothing shipped: a trigger woke an agent, it investigated, and what came back is a finding somebody has to read. It is not a failure either, so it gets its own state.
+.PP
+Trigger\(hystarted runs notify on their own preference key, \fBagent_report\fR, separate from \fBwork\fR. \fBwork\fR is "the run you started finished"; this is "something broke, an agent investigated, here is what it found". Route it like anything else: \fBptln notify on agent_report email\fR, \fBptln notify off agent_report slack\fR. Quiet hours apply.
+.PP
+The message leads with the agent's own summary and carries an "ask about it" link, which opens a room seeded with the whole incident: what woke the run, what each task concluded, which branches it left. THE ROOM IS CREATED WHEN A HUMAN CLICKS, never on the agent's initiative. Clicking twice lands in the same room.
+.SH SWITCHING A LIVE PARTY
+.nf
+ptln party context <id> --mode fix
+ptln party context <id> --project checkout --mode describe
+.fi
+.PP
+Re\(hypoint an OPEN party at a different persona or project without ending the conversation. The transcript survives, the change is announced in the room, and it applies from the agent's NEXT turn \(em a turn in flight finishes under the old persona. Inside a party or a chat you rarely need this: say what you want and the agent switches itself.
+.SH CHAT (TELEGRAM, DISCORD)
+Reach your projects from the chat app you already have open. One bot, many personas: say "let's plan a feature for <project>" and it switches persona and project without losing the conversation. The agent routes with a tool, so there is no phrasing you have to get right.
+.PP
+Chat is a door IN, not a place to review work. Every reply that refers to real output carries a link back to the run, the PR or the plan.
+.SS Connecting your account
+.nf
+ptln chat                    what's connected
+ptln chat link telegram      prints a one\-time code
+ptln chat link discord
+ptln chat unlink telegram
+.fi
+.PP
+Send the code to the bot (\fB/link CODE\fR on Telegram, \fB/link code:CODE\fR on Discord). It works once and expires in 15 minutes. Treat it as a credential: whoever redeems it connects THEIR chat account to YOUR partyline account, with your team permissions. Never paste one into a shared channel.
+.SS Who can do what
+Someone whose chat account is not linked is not a partyline user. Their messages reach the room as context, fenced as untrusted input, but they authorize nothing: no run starts, no tokens are spent, no machine is touched. Linking is the whole permission model.
+.SS Commands in chat
+.nf
+/start [persona]   open (or resume) a conversation for this channel
+/link CODE         connect your account
+/who               which agents are here          (Discord)
+/say <message>     talk to the room               (Discord)
+.fi
+.PP
+On Telegram, ordinary messages go into the room once you have run \fB/start\fR. On Discord it is slash commands and @mentions only, so the bot never needs Discord's privileged message\-content permission.
+.SS Privacy
+Telegram bot chats are cloud chats, not end\-to\-end encrypted: anything said to the bot is visible to Telegram. Know that before pasting anything sensitive into one.
+.SH AGENT\-TO\-AGENT (A2A)
+A partyline consult is an A2A task, so the control plane also speaks the protocol, built to A2A v1.0.1. Any A2A client can consult a partyline project:
+.IP \(bu 2
+.B GET /.well\-known/agent\-card.json
+the public gateway card. A pure function of the origin: it names no project, device, org or user.
+.IP \(bu 2
+.B GET /api/v1/a2a/agent\-card.json?tenant=...
+the per\(hyproject card. Authenticated, and gated by the same authorization check as the consult itself, because the existence of a project label is private.
+.IP \(bu 2
+.B POST /api/v1/a2a
+\fBSendMessage\fR and \fBGetTask\fR \(em the v1.0.1 names, not the v0.2/v0.3 \fBmessage/send\fR and \fBtasks/get\fR.
+.PP
+The spec wants one card per host, but a partyline agent is a (device, project) pair, so the pair rides in \fBAgentInterface.tenant\fR. A2A is not a bypass: it opens a consult through the SAME gate as the REST route, with the same authorization, the same per\(hyasker rate\(hylimit bucket, the same 32,000\(hycharacter bound, and the same per\(hyproject auto\-answer policy and budget on the answering machine. Nothing here is reachable from the CLI; it is a server surface for third\(hyparty clients.
+.SH AUTONOMOUS WORKERS
+.B ptln work
+and
+.B ptln crank
+run agents unattended under four invariants:
+.IP 1. 4
+.B Sandbox.
+Every worker runs in a git worktree; what it can affect is one branch.
+.IP 2. 4
+.B Proposal, not push.
+Workers leave commits on their branch and a human reviews and merges. Nothing is pushed by default. With \fB\-\-merge\-policy pr|auto\fR, or a board dispatch, the branch is pushed and a pull request opens \(em as a \fIdraft\fR when the team's review gate is on, so a human Accept is what makes it mergeable.
+.IP 3. 4
+.B Bounded.
+A hard wall\(hyclock timeout, plus for crank a max\(hyitems cap and an N\(hyconsecutive\(hyfailure halt.
+.IP 4. 4
+.B Allowlist, not bypass.
+Read/edit/write tools by default; Bash only with \fB\-\-allow\-bash\fR; never \fB\-\-dangerously\-skip\-permissions\fR.
+.PP
+.B ptln new claude \-\-keep\-going N
+uses a Claude Stop hook to auto\(hycontinue an interactive session up to N turns, or until the agent prints the done token.
+.SH ENGINES
+Every phase (plan, build, review) runs the engine you pick. Precedence: per\(hyrun override, then the project's phase setting in the web app, then the machine's registered per\(hyproject engine (\fBptln daemon add\-project \-\-engine\fR), then claude. The set is closed: claude, codex, gemini, opencode, goose, antigravity. Postures are enforced per engine, and degradations are logged, never silent. Non\(hyclaude engines have no streaming, no resume \(em interrupted tasks restart \(em and no context\(hythread remember/recall inside build workers yet.
+.IP \(bu 2
+.B antigravity
+cannot run headless jobs. Build, review and one\(hyshot describe refuse fail\(hyclosed, because its only headless knob is a full permissions bypass, which is never passed. Interactive sessions and party or planning launches work, deny\(hyby\(hydefault.
+.IP \(bu 2
+.B opencode
+models are provider\(hyscoped (\fIprovider/model\fR); blank falls to your opencode config's default. Needs CLI >= 0.25.0 on the daemon; older refuses fail\(hyclosed.
+.IP \(bu 2
+.B goose
+resolves provider and model from GOOSE_PROVIDER and GOOSE_MODEL in its own config. Read\(hyonly runs are refused \(em goose cannot enforce that posture. Needs CLI >= 0.25.2.
+.IP \(bu 2
+.B codex
+builds require \fB\-\-allow\-bash\fR: codex cannot separate file edits from shell. Without it the run refuses with an actionable error.
+.IP \(bu 2
+.B gemini
+needs the project directory trusted \(em it refuses headless tools in untrusted folders. Trust it once interactively, or set \fBGEMINI_CLI_TRUST_WORKSPACE=true\fR.
+.IP \(bu 2
+Build and review engine choice takes effect on daemons running CLI >= 0.10.0. Older daemons ignore it and run claude.
+.PP
+The evidence\(hygate verifier and the visual verify layer run local claude regardless of the build engine: the verifier is never the producer.
+.SH FILES
+.TP
+.B ~/.partyline/token
+your account token, from \fBptln login\fR.
+.TP
+.B ~/.partyline/mcp.json
+your MCP server catalog, edited via \fBctrl\-\e m\fR or by hand.
+.TP
+.B ~/.partyline/keepgoing/*.json
+per\(hysession keep\-going state: remaining turns and goal.
+.TP
+.B ./.partyline.json
+a repo's bound Context Thread. Check it in to share it with the team.
+.TP
+.B ./.worktreeinclude
+gitignored files to seed into a new worktree, such as .env or .mcp.json. A matched file is copied only if it is also git\(hyignored.
+.TP
+.B "~/.claude, ~/.codex, ~/.gemini"
+the AI tools' own session stores, which the manager reads. Read\(hyonly.
+.TP
+.B ~/.partyline/telemetry.json
+anonymous\(hytelemetry state: the random install id and last\(hyping day. The payload is only {install_id, version, os}. See ENVIRONMENT for the opt\(hyouts.
+.TP
+.B ~/.partyline/tray.off
+present = the tray never starts (\fBptln tray off\fR).
+.TP
+.B ~/.partyline/daemon/
+daemon state: the project registry (label to directory), launch records, logs.
+.TP
+.B ~/.partyline/daemon/consults\-global.mode
+the machine\(hywide peer\(hyconsult switch (\fBptln daemon consults \-\-all\fR), mode 0600, never mirrored to the control plane. A value file rather than a marker, so \fBcat\fR tells you which way it is set. The answering process re\-reads it on every decision and it FAILS CLOSED: only a missing file, the untouched default, or contents of exactly \fBauto\fR permit auto\-answer. A truncated or garbled write reads as \fBask\fR.
+.TP
+.B ~/.partyline/daemon/consult\-budget.json
+today's auto\-answer spend: the day key, the machine total, and a per\(hyproject count. A cache with a floor rather than an audit log \(em losing it can only grant a fresh allowance, never charge twice, so a missing or corrupt file is an empty day. Rolls over on the local date.
+.TP
+.B ~/.partyline/peer\-messages.json
+peer consult messages filed by the background watcher, inbound and outbound \(em what \fBctrl\-\e p\fR reads. An ask you escaped out of keeps being watched, polling every 5s under the server's 10\(hyminute window, and its answer, decline, cancellation or timeout is recorded here and bannered in the mux. Nothing here is ever injected into an agent.
+.SH ENVIRONMENT
+.TP
+.B PARTYLINE_API
+the instance every command talks to. Set by \fBptln login \fIurl\fR for that one command; export it for the shell.
+.TP
+.B PARTYLINE_RELAY
+the relay address, overriding the one your instance registers. \fB\-\-relay\fR does the same per session.
+.TP
+.B PARTYLINE_THREAD_ID
+the Context Thread a session is attached to. Set per\(hysession by \fB\-\-thread\fR; the cg\-mcp server reads it.
+.TP
+.B PARTYLINE_ENGINE
+the engine name used for attribution.
+.TP
+.B PARTYLINE_NO_CONNECT_PROMPT=1
+never offer to wire the context tools into an AI CLI.
+.TP
+.B PARTYLINE_CHECKUP_IDLE_SECS, PARTYLINE_CHECKUP_POLL_SECS
+tune the "what changed in shared context while you were away" banner. Defaults 1800s and 90s.
+.TP
+.B PARTYLINE_CONSULT_AUTO_DAILY, PARTYLINE_CONSULT_AUTO_DAILY_TOTAL
+this machine's CEILINGS on auto\-answered peer consults. Each does two jobs: it is the fallback when the project has no \fBconsult_auto_daily\fR of its own (defaults 24 per project, 48 per machine), and it is the ceiling the project's setting is clamped to. The clamp runs DOWNWARD only, so a box can tighten itself below what the project asks for but no project setting can loosen it. Over the cap, questions queue for your approval instead of being dropped. \fBPARTYLINE_CONSULT_AUTO_DAILY=0\fR disables auto\-answer wherever it is read \(em and it is read by the process that ANSWERS: the shell you run \fBptln daemon run\fR in, and an always\(hyon service only if it was set when you ran \fBptln daemon install\fR, which bakes both into the LaunchAgent or systemd unit alongside PATH and PARTYLINE_API. Changing them later needs a reinstall. To turn auto\-answer off, prefer \fBptln daemon consults \-\-all ask\fR: persisted, re\-read live, and not overridable by any value of these variables. Unparseable values are ignored in favour of the default.
+.TP
+.B PARTYLINE_TELEMETRY=0, DO_NOT_TRACK
+disable the daily anonymous ping ({install_id, version, os} \(em no paths, no content). Also off in CI and dev builds. You are shown a notice before the first ping sends.
+.TP
+.B PARTYLINE_NO_UPDATE_CHECK
+disable the update version check.
+.TP
+.B GEMINI_CLI_TRUST_WORKSPACE=true
+let gemini run headless tools in this directory. See ENGINES.
+.SH EXAMPLES
+.SS Point this machine at an instance
+.nf
+    ptln server install \-\-site https://partyline.example.com   # run one here
+    ptln login https://partyline.example.com                   # or use an existing one
+.fi
+.SS Manage and resume your AI sessions
+.nf
+    ptln                         # the switchboard; Enter resumes where you left off
+    ptln llms ls \-\-all            # flat list incl. agent sessions
+.fi
+.SS Give your agents a shared memory
+.nf
+    ptln thread new "Checkout rework"      # prints a thread id
+    ptln new claude \-\-thread <id>          # launch wired to it
+    ptln thread bind <id>                  # this repo's default (check in .partyline.json)
+.fi
+The agent reads the thread at launch and records decisions as it works; teammates' agents on the same thread see them. In any session, \fBctrl\-\e c\fR manages it.
+.SS Two agents, isolated files, one shared memory
+.nf
+    ptln new claude \-\-worktree lane\-a \-\-thread <id>
+    ptln new codex  \-\-worktree lane\-b \-\-thread <id>
+.fi
+Tell claude "we're dropping guest checkout"; ask codex "anything decided?" and it recalls it.
+.SS Crank a backlog autonomously, then review
+.nf
+    printf '%s\n' \\
+      "add a dark\-mode toggle to the navbar" \\
+      "fix the cart race on double\-submit" > backlog.txt
+    ptln crank \-\-file backlog.txt \-\-thread <id> \-\-max 5
+    ptln wt                                 # each item is a branch to review
+.fi
+.SS Share a live terminal
+.nf
+    ptln start                              # prints a join link
+    # teammate:
+    ptln join <link>                        # view\-only until you grant the keyboard
+.fi
+.SS Let a project's build agents run one extra command
+.nf
+    ptln project tools checkout\-web                       # what is granted today
+    ptln project tools checkout\-web \-\-role build \\
+      \-\-allow\-shell "gh *" \-\-allow\-mcp linear            # a prefix + an MCP server
+    ptln settings                                        # every setting, and where to change it
+.fi
+Grants are names and prefixes only: the machine that RUNS the agent resolves an MCP name against its own ~/.partyline/mcp.json and skips one it does not have. Takes effect on the next launch or run.
+.SS Ask a teammate's agent for a read\-only second opinion
+.nf
+    # on their machine, once: advertise a project the question can be scoped to
+    ptln daemon add\-project api ~/dev/api
+    ptln daemon consults api            # shows the policy (auto by default)
+    ptln daemon consults \-\-all ask       # or: never auto\-answer anything on this machine
+
+    # in your session: ctrl\-\e p, or let the agent call list_peers + ask_peer
+    #   ask_peer waits 45s, then gives you a consult id; check_consult collects it later
+
+    # on their machine, when a question queues for a human instead
+    ptln peer approve c_abc123          # prints the question, then answers it read\-only
+
+    # withdraw one you asked (asker only)
+    ptln peer cancel c_abc123           # their machine drops it; no read\-only turn is spent
+.fi
+.SH WEB
+Your instance serves the shared surfaces: the dashboard, Context Threads (/threads) with a version\(hycontrol timeline, entity pages (/entities/<slug>) showing everything the team knows about one thing across threads, parties (/parties), and runs.
+.PP
+Settings \(-> Integrations carries the team's automation edges: API keys (scoped, shown once), OUTBOUND WEBHOOKS, and INBOUND TRIGGERS. Billing, the Slack and GitHub integrations, and members and roles are the remaining web\(hyonly surfaces; everything else has a CLI command and a line in \fBptln settings\fR.
+.SH SEE ALSO
+Docs:
+.B https://partyline.sh/docs
+.RB "\(em run " "ptln help" " or " "ptln <command> help" " for command usage."
+.PP
+For an AI assistant with nothing installed, the whole product is one plain\(hytext file at
+.B https://partyline.sh/llms-full.txt
+\(em every command and subcommand, the values the API accepts, and the trust model, generated from the source tree. No account needed. A shorter summary lives at
+.BR https://partyline.sh/llms.txt .
+.SH REPORTING BUGS
+.B https://github.com/partyline-sh/cli
+.SH COPYRIGHT
+(c) 1550652 BC Ltd. The command\(hyline client is open source (MIT).

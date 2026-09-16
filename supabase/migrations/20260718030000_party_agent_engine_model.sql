@@ -1,0 +1,22 @@
+-- What is actually answering in this room.
+--
+-- The chat footer already names the host and the CLI version (both facts off the daemon's
+-- heartbeat), because a describe session once burned ten minutes on a machine whose project label
+-- pointed at a home directory while running a CLI seventeen releases old — and nothing on screen
+-- said so. The remaining blank is the one people ask about first: WHICH MODEL is this?
+--
+-- It belongs on party_agents rather than on launch_requests, which was the first instinct. A launch
+-- request describes what the control plane ASKED FOR, is null whenever the project pinned nothing,
+-- and exists only for daemon-launched parties — an agent joined by hand with `ptln party <link>`
+-- has no launch row at all. party_agents describes WHO IS IN THE ROOM, which is the actual question,
+-- and it is written by every runner regardless of how it got there.
+--
+-- Reported by the runner on stream connect and on each presence heartbeat, alongside name and role,
+-- because the runner is the only party that knows: resolvePartyModel (party_agent.go) picks the
+-- model from an explicit --model, then the party's server-configured model, then the engine's own
+-- default — and that last case is invisible to the server by construction.
+--
+-- Display only. Nothing branches on these, so a runner too old to send them leaves them null and the
+-- footer omits the model rather than naming one it cannot vouch for.
+alter table public.party_agents add column if not exists engine text;
+alter table public.party_agents add column if not exists model text;
