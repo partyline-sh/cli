@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>partyline · review</title>
+<style>
+/* Tokens lifted from web/src/app/globals.css so this surface reads as partyline rather than as a
+   separate tool. Values are copied, not imported — this page ships inside the Go binary and must
+   render with no network and no build step. If the app's palette moves, move these with it.
+
+   The four mark kinds map onto the existing SEMANTIC state pastels rather than inventing a palette:
+   scope→info (the brand pink), behaviour→success, constraint→warning, question→attention. That last
+   one is not a coincidence — `attention` already means "a human needs to look at this", which is
+   exactly what an unanswered question is. */
+:root{
+  color-scheme: light;
+  --background:#f5f5f4; --foreground:#1c1917;
+  --card:#ffffff; --border:#e7e5e4; --muted:#f5f5f4; --muted-foreground:#78716c;
+  --primary:#1c1917; --primary-foreground:#fafaf9;
+  --ring:#9e1a58;
+  --radius:0.3rem;
+
+  --scope-fill:#f8b8d2;   --scope-ink:#9e1a58;
+  --behaviour-fill:#adf7b6; --behaviour-ink:#14532d;
+  --constraint-fill:#ffc09f; --constraint-ink:#7c2d12;
+  --question-fill:#ffee93; --question-ink:#713f12;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme: dark;
+    --background:#1b1a19; --foreground:#f5f3f0;
+    --card:#232220; --border:#38352f; --muted:#2a2826; --muted-foreground:#a8a29e;
+    --primary:#fafaf9; --primary-foreground:#1c1917;
+    --ring:#ff6b9d;
+    /* Dark mode inverts the pair exactly as the app does: deep tint as the fill, pastel as the ink. */
+    --scope-fill:#501d31;   --scope-ink:#ff6b9d;
+    --behaviour-fill:#1e3a28; --behaviour-ink:#adf7b6;
+    --constraint-fill:#3a2516; --constraint-ink:#ffc09f;
+    --question-fill:#3a3416; --question-ink:#ffee93;
+  }
+}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--background); color:var(--foreground);
+  /* Geist is what the app uses, self-hosted by next/font. This page has no network by design, so
+     it takes Geist's own fallback stack rather than risking a blocked webfont request. */
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+
+/* ---- toolbar: the app's page header — bg-card over the stone canvas ---- */
+header{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:9px 14px; background:var(--card); border-bottom:1px solid var(--border);
+}
+.brand{font-weight:600;letter-spacing:-.01em}
+.brand span{color:var(--muted-foreground);font-weight:400}
+.group{display:flex;align-items:center;gap:5px}
+.group>label{
+  color:var(--muted-foreground);font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;margin-right:3px;
+}
+.opt{
+  padding:4px 9px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--card);color:var(--muted-foreground);font-size:12px;
+}
+.opt:hover{color:var(--foreground);background:var(--muted)}
+.opt[aria-pressed=true]{background:var(--foreground);border-color:var(--foreground);color:var(--background);font-weight:500}
+/* A pressed kind wears its own state colour — the same pastel-fill/ink pairing the app's badges use. */
+.opt.kind[aria-pressed=true]{font-weight:600}
+.opt.kind[data-kind=scope][aria-pressed=true]{background:var(--scope-fill);border-color:var(--scope-fill);color:var(--scope-ink)}
+.opt.kind[data-kind=behaviour][aria-pressed=true]{background:var(--behaviour-fill);border-color:var(--behaviour-fill);color:var(--behaviour-ink)}
+.opt.kind[data-kind=constraint][aria-pressed=true]{background:var(--constraint-fill);border-color:var(--constraint-fill);color:var(--constraint-ink)}
+.opt.kind[data-kind=question][aria-pressed=true]{background:var(--question-fill);border-color:var(--question-fill);color:var(--question-ink)}
+.spacer{flex:1}
+.primary{
+  background:var(--primary);color:var(--primary-foreground);font-weight:500;
+  padding:5px 13px;border-radius:var(--radius);
+}
+.primary:hover{opacity:.9}
+.primary[disabled]{opacity:.4;cursor:default}
+.ghost{padding:5px 11px;border:1px solid var(--border);border-radius:var(--radius);color:var(--muted-foreground)}
+.ghost:hover{color:var(--foreground);background:var(--muted)}
+
+/* ---- main ---- */
+main{flex:1;display:flex;min-height:0}
+/* The canvas stays the stone/charcoal --background on purpose: it is what makes the artifact read
+   as a raised surface instead of dissolving into the page (globals.css says the same thing about
+   the board's white cards). */
+#stagewrap{flex:1;overflow:auto;padding:22px;display:flex;justify-content:center;align-items:flex-start}
+#stage{position:relative;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.10)}
+#frame{display:block;border:0;width:100%;border-radius:var(--radius)}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+body[data-armed=true] #overlay{pointer-events:auto;cursor:crosshair}
+
+/* ---- sidebar ---- */
+aside{
+  width:322px;flex:none;background:var(--card);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;min-height:0;
+}
+aside h2{
+  margin:0;padding:11px 13px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted-foreground);border-bottom:1px solid var(--border);
+}
+#marks{flex:1;overflow:auto;margin:0;padding:0;list-style:none}
+#marks li{padding:10px 13px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start}
+#marks li:hover{background:var(--muted)}
+/* Numbered chip = the badge pattern: pastel fill, dark ink, boxy radius. */
+#marks .num{
+  flex:none;min-width:20px;height:20px;padding:0 5px;border-radius:var(--radius);
+  display:grid;place-items:center;font-size:11px;font-weight:700;
+}
+#marks li[data-kind=scope] .num{background:var(--scope-fill);color:var(--scope-ink)}
+#marks li[data-kind=behaviour] .num{background:var(--behaviour-fill);color:var(--behaviour-ink)}
+#marks li[data-kind=constraint] .num{background:var(--constraint-fill);color:var(--constraint-ink)}
+#marks li[data-kind=question] .num{background:var(--question-fill);color:var(--question-ink)}
+#marks .body{flex:1;min-width:0}
+#marks .k{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted-foreground)}
+#marks li[data-kind=scope] .k{color:var(--scope-ink)}
+#marks li[data-kind=behaviour] .k{color:var(--behaviour-ink)}
+#marks li[data-kind=constraint] .k{color:var(--constraint-ink)}
+#marks li[data-kind=question] .k{color:var(--question-ink)}
+#marks .t{word-wrap:break-word;overflow-wrap:anywhere}
+#marks .sel{
+  font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--muted-foreground);word-break:break-all;margin-top:2px;
+}
+#marks .del{color:var(--muted-foreground);font-size:15px;line-height:1;padding:0 3px;border-radius:var(--radius)}
+#marks .del:hover{color:var(--foreground);background:var(--border)}
+.empty{padding:15px 13px;color:var(--muted-foreground);line-height:1.65}
+.empty code{
+  background:var(--muted);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1px 5px;font:11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+
+/* ---- composer ---- */
+#composer{
+  position:absolute;z-index:20;width:286px;background:var(--card);
+  border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 2px 4px rgba(0,0,0,.06),0 12px 32px rgba(0,0,0,.22);padding:11px;
+}
+#composer[hidden]{display:none}
+#composer textarea{
+  width:100%;min-height:66px;resize:vertical;background:var(--background);color:var(--foreground);
+  border:1px solid var(--border);border-radius:var(--radius);padding:7px;font:inherit;outline:none;
+}
+#composer textarea:focus{border-color:var(--ring)}
+#composer .row{display:flex;gap:6px;align-items:center;margin-top:9px}
+#composer .hint{
+  color:var(--muted-foreground);font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  margin-bottom:7px;word-break:break-all;
+}
+#composer .kindtag{font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--muted-foreground)}
+#composer .kindtag[data-kind=scope]{color:var(--scope-ink)}
+#composer .kindtag[data-kind=behaviour]{color:var(--behaviour-ink)}
+#composer .kindtag[data-kind=constraint]{color:var(--constraint-ink)}
+#composer .kindtag[data-kind=question]{color:var(--question-ink)}
+
+/* ---- activity rail: the model working, in the place you are already looking ---- */
+#activity{border-top:1px solid var(--border);background:var(--muted);max-height:44%;display:flex;flex-direction:column}
+#activity[hidden]{display:none}
+.act-head{
+  display:flex;align-items:center;gap:7px;padding:9px 13px;flex:none;
+  font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted-foreground);
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--scope-ink);flex:none}
+/* Motion says "still running" without a spinner stealing attention from the page being reviewed. */
+#activity[data-state=working] .dot{animation:pulse 1.4s ease-in-out infinite}
+#activity[data-state=ok] .dot{background:var(--behaviour-ink);animation:none}
+#activity[data-state=error] .dot{background:var(--constraint-ink);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){#activity[data-state=working] .dot{animation:none}}
+#act-log{
+  margin:0;padding:0 13px 11px;list-style:none;overflow:auto;flex:1;
+  font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted-foreground);
+}
+#act-log li{padding:1px 0;word-break:break-word}
+#act-log li.err{color:var(--constraint-ink)}
+body[data-busy=true] #done{opacity:.4;pointer-events:none}
+body[data-busy=true] #stage{opacity:.55;transition:opacity .2s}
+</style>
+</head>
+<body data-armed="false">
+
+<header>
+  <div class="brand">partyline <span>· review</span></div>
+
+  <div class="group" id="kinds">
+    <label>Mark as</label>
+    <button class="opt kind" data-kind="scope"      aria-pressed="false">scope</button>
+    <button class="opt kind" data-kind="behaviour"  aria-pressed="false">behaviour</button>
+    <button class="opt kind" data-kind="constraint" aria-pressed="true">constraint</button>
+    <button class="opt kind" data-kind="question"   aria-pressed="false">question</button>
+  </div>
+
+  <div class="group" id="tools">
+    <label>Tool</label>
+    <button class="opt tool" data-tool="none"      aria-pressed="true">browse</button>
+    <button class="opt tool" data-tool="pin"       aria-pressed="false">pin</button>
+    <button class="opt tool" data-tool="rect"      aria-pressed="false">box</button>
+    <button class="opt tool" data-tool="arrow"     aria-pressed="false">arrow</button>
+    <button class="opt tool" data-tool="highlight" aria-pressed="false">highlight</button>
+    <button class="opt tool" data-tool="freehand"  aria-pressed="false">draw</button>
+  </div>
+
+  <div class="group" id="viewports">
+    <label>Width</label>
+    <button class="opt vp" data-vp="mobile"  aria-pressed="false">390</button>
+    <button class="opt vp" data-vp="tablet"  aria-pressed="false">834</button>
+    <button class="opt vp" data-vp="desktop" aria-pressed="true">1280</button>
+  </div>
+
+  <div class="spacer"></div>
+  <button class="ghost" id="finish">Finish</button>
+  <button class="primary" id="done">Send <span id="count">0</span> marks</button>
+</header>
+
+<main>
+  <div id="stagewrap">
+    <div id="stage">
+      <!-- sandbox WITHOUT allow-same-origin: the artifact is agent-generated HTML and gets an
+           opaque origin, so it cannot reach this page's DOM or storage even though we serve both.
+           It talks to us only through the postMessage courier in sdk.js. -->
+      <!-- src is set by viewer.js from the page's own path: one listener serves a standalone
+           review at "/" and many at "/w/<work-item-id>/", and no literal path is right for both. -->
+      <iframe id="frame" sandbox="allow-scripts" title="artifact"></iframe>
+      <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <aside>
+    <h2 id="version">Marks</h2>
+    <ul id="marks"></ul>
+    <div class="empty" id="empty">
+      Pick a <b>tool</b>, then draw on the mockup to leave a mark.<br><br>
+      <code>browse</code> lets you click and scroll the mockup normally.<br><br>
+      <b>Send</b> hands them to the model, which rebuilds the page here.
+    </div>
+
+    <section id="activity" hidden>
+      <div class="act-head">
+        <span class="dot" id="act-dot"></span>
+        <span id="act-status">working…</span>
+      </div>
+      <ol id="act-log"></ol>
+    </section>
+  </aside>
+</main>
+
+<div id="composer" hidden>
+  <div class="hint" id="composer-hint"></div>
+  <textarea id="composer-text" placeholder="What about this is wrong, or required?"></textarea>
+  <div class="row">
+    <button class="primary" id="composer-save">Save</button>
+    <button class="ghost" id="composer-cancel">Cancel</button>
+    <span class="spacer"></span>
+    <span class="kindtag" id="composer-kind"></span>
+  </div>
+</div>
+
+<script type="module" src="/js/viewer.js"></script>
+</body>
+</html>
