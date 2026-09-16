@@ -1,0 +1,43 @@
+# The built CLI binary at the repo root. ANCHORED with a leading slash, and it has to be:
+# a bare `partyline` matches EVERY path segment of that name anywhere in the tree, which is
+# not a hypothetical — it silently swallowed web/src/app/.well-known/partyline/ (the instance
+# identity endpoint) and deploy/stack/keycloak-theme/partyline/ (the login theme). Both were
+# written, reviewed, built locally, and shipped in PRs that never contained them. `git add -A`
+# says nothing about an ignored file, so nothing failed until the endpoint 404'd in production.
+/partyline
+.partyline/
+*.log
+dist/
+.DS_Store
+
+# Env files anywhere. web/.gitignore already covered web/, but NOT the repo root or deploy/stack/,
+# which is where a self-hoster's or an operator's real .env naturally lands — `deploy/stack/.env`
+# is required by the compose file, so it is a file people are actively invited to create right
+# next to tracked ones. This repo is destined to be public (scripts/secret-scan.sh), and a public
+# git history cannot be un-leaked.
+.env
+.env.*
+!.env.example
+
+# Build artifacts that were committed by accident (25MB of binaries).
+# The relay binary is produced by `go build ./relay`; ptln-guided was a one-off
+# from #630 and is referenced nowhere. The docker-compose references are to the
+# IMAGE name partyline/partyline-relay, not to these files.
+#
+# ANCHORED, like every artifact rule here — see the note on /partyline above.
+/partyline-relay
+/ptln-guided
+# Node caches at the REPO ROOT. web/.gitignore covers web/node_modules, but its `/node_modules`
+# is rooted at web/ — so a root-level node_modules (vitest writes a cache there when run from the
+# repo root) was tracked, and one of its files had been committed.
+/node_modules/
+
+# Built binaries. `go build ./cmd/ptln-tray/` drops one here, and a `git add -A` swept a 6MB
+# artifact into the tree — the repo has no business carrying compiled output.
+#
+# ANCHORED, and this one had already cost us: a bare `ptln-tray` matches the DIRECTORY
+# cmd/ptln-tray/, so every NEW file added under it was silently ignored. Files already tracked kept
+# working (gitignore does not apply to tracked paths), which is what made it invisible — the tray
+# built and tested fine locally, and the release failed on `undefined: daemonLine` because the file
+# had never left this machine. TestNoSourceFileIsGitIgnored now fails the build instead.
+/ptln-tray
