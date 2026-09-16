@@ -1,0 +1,230 @@
+package main
+
+// PROTOTYPE — tmux-backed session host (`ptln tmux`).
+//
+// This is Option 3 from the mux-corruption analysis: instead of the built-in pass-through
+// multiplexer (internal/ptymux) owning the terminal, tmux does. tmux keeps a full server-side
+// grid per window, so switching between differential-redraw TUIs (claude, codex) can never
+// leave stale cells behind — the exact structural defect the pass-through mux cannot fix.
+//
+// Scope of the prototype:
+//   - `ptln tmux`           one window running the quick engine (PARTYLINE_ENGINE or claude)
+//   - `ptln tmux --resume`  one window per saved workspace session (same resume argv the
+//     built-in mux would use, permission flags included)
+//   - branded status bar (wordmark amber, focused-tab pill pink), ctrl-\ prefix to match
+//     the built-in mux's chord, n/N new-session keys mirroring the switchboard
+//
+// NOT in the prototype (deliberately): the launcher/home screen, session sharing, thread
+// wiring, boot splash, workspace save-on-quit. Those come if the backend graduates.
+//
+// Everything runs on a private tmux server (socket "partyline") so the user's own tmux
+// sessions are untouched.
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+
+	"partyline.sh/partyline/internal/brand"
+	"partyline.sh/partyline/internal/ptymux"
+)
+
+// tmuxSocketName is the backend's private tmux socket. PARTYLINE_TMUX_SOCKET overrides it —
+// the socket lives in /tmp/tmux-<uid>/ (machine-wide per user, NOT per $HOME), so tests and
+// scripts MUST override it or they attach to, and can kill, the operator's real server.
+func tmuxSocketName() string {
+	if s := strings.TrimSpace(os.Getenv("PARTYLINE_TMUX_SOCKET")); s != "" {
+		return s
+	}
+	return "partyline"
+}
+
+const tmuxSessionName = "ptln"
+
+func tmuxCmdMain(args []string) {
+	// runs INSIDE a popup: the per-session menu (c|m|w|g|n) for the active window — hidden
+	if len(args) > 0 && args[0] == "--session-menu" {
+		which := ""
+		if len(args) > 1 {
+			which = args[1]
+		}
+		tmuxSessionMenu(which)
+		return
+	}
+	// runs as the CHILD of a share Session: stream the pane to stdout — hidden
+	if len(args) > 1 && args[0] == "--tap" {
+		tmuxTapMain(args[1])
+		return
+	}
+	var resume, printConf, save, newWin, bypass, detached bool
+	for _, a := range args {
+		switch a {
+		case "--resume":
+			resume = true
+		case "--print-conf":
+			printConf = true
+		case "--save-workspace": // hook target (window-unlinked) — hidden
+			save = true
+		case "--detached": // hook target (client-detached): snapshot + scribe — hidden
+			save = true
+			detached = true
+		case "--new": // chord target (prefix n / N) — hidden
+			newWin = true
+		case "--bypass":
+			bypass = true
+		case "--home": // chord target (prefix o) — hidden
+			if err := tmuxHome(); err != nil {
+				fatal(fmt.Errorf("ptln tmux --home: %w", err))
+			}
+			return
+		case "--menu": // chord target (ctrl-\) — hidden; opens the centered popup
+			if err := tmuxMenuOpen(); err != nil {
+				fatal(fmt.Errorf("ptln tmux --menu: %w", err))
+			}
+			return
+		case "--menu-tui": // runs INSIDE the popup — hidden
+			if err := tmuxMenuTUI(); err != nil {
+				fatal(fmt.Errorf("ptln tmux --menu-tui: %w", err))
+			}
+			return
+		default:
+			fatal(fmt.Errorf("ptln tmux: unknown flag %q", a))
+		}
+	}
+
+	if printConf {
+		fmt.Print(tmuxConf())
+		return
+	}
+	if _, err := exec.LookPath("tmux"); err != nil {
+		fatal(fmt.Errorf("ptln tmux: tmux is not installed (brew install tmux / apt install tmux)"))
+	}
+	if !tmuxUsable() {
+		fatal(fmt.Errorf("ptln tmux: needs tmux 3.3 or newer (the generated conf uses popup styling an older tmux rejects)"))
+	}
+	if save {
+		tmuxSaveWorkspace()
+		if detached {
+			// the human just left — capture each thread-attached session's context before it
+			// goes cold, exactly what the built-in mux's BeforeQuit did at quit
+			scribeOnQuit(tmuxWorkspaceSpecs())
+		}
+		return
+	}
+	if newWin {
+		if err := tmuxNewWindow(bypass); err != nil {
+			fatal(fmt.Errorf("ptln tmux --new: %w", err))
+		}
+		return
+	}
+	if os.Getenv("TMUX") != "" && !insidePtlnTmux() {
+		fatal(fmt.Errorf("ptln tmux: already inside another tmux session — detach first (prefix d)"))
+	}
+
+	var specs []ptymux.Spec
+	if resume {
+		specs = loadWorkspace()
+		if len(specs) == 0 {
+			fmt.Println("no saved workspace — starting a fresh session instead")
+		}
+	}
+	if len(specs) == 0 {
+		cwd, _ := os.Getwd()
+		spec, err := newSessionSpec(quickNewEngine(), cwd, "", "", "", false, false, 0)
+		if err != nil {
+			fatal(fmt.Errorf("ptln tmux: %w", err))
+		}
+		specs = []ptymux.Spec{inheritRepoBindSpec(spec)}
+	}
+	if err := runTmuxApp(specs); err != nil {
+		fatal(fmt.Errorf("ptln tmux: %w", err))
+	}
+}
+
+// tmuxWindowName keeps labels safe for the status bar: control chars stripped, length capped.
+var tmuxUnprintable = regexp.MustCompile(`[[:cntrl:]#]`)
+
+func tmuxWindowName(label string) string {
+	s := tmuxUnprintable.ReplaceAllString(label, "")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		s = "session"
+	}
+	if len([]rune(s)) > 24 {
+		s = string([]rune(s)[:24])
+	}
+	return s
+}
+
+// tmuxConf renders the generated config. Brand colors come from the brand package
+// (wordmark amber, focused-pill pink) so a palette change there reaches this bar too.
+func tmuxConf() string {
+	amber := brand.Hex(brand.AmberRGB)
+	pill := brand.Hex(brand.PillRGB)
+	var b strings.Builder
+	w := func(line string) { b.WriteString(line + "\n") }
+
+	w(`# GENERATED by ptln tmux (prototype backend). Rewritten on every launch — do not edit.`)
+	w(``)
+	w(`set -g default-terminal "tmux-256color"`)
+	w(`set -ga terminal-overrides ",*:RGB"`)
+	w(`set -s escape-time 0`)
+	// Modified keys must survive the hop into a pane. Shift-Enter, Option-Enter and friends reach
+	// an app inside tmux only when tmux is told to negotiate the extended-key protocol on its
+	// behalf; without these three the terminal's rich key sequences are flattened on the way in and
+	// the app sees a bare Enter, which is why a newline in an agent's prompt box submitted instead.
+	// These are the settings Claude Code's own docs require of a tmux host, and every engine we
+	// host has the same need. allow-passthrough additionally lets a pane talk to the outer terminal
+	// directly (OSC sequences — clipboard, images), which the same apps rely on.
+	w(`set -s extended-keys on`)
+	w(`set -as terminal-features "xterm*:extkeys"`)
+	w(`set -g allow-passthrough on`)
+	w(`set -g display-time 6000`)
+	w(`set -g history-limit 50000`)
+	w(`set -g mouse on`)
+	w(`set -g base-index 1`)
+	w(`setw -g pane-base-index 1`)
+	w(`set -g renumber-windows on`)
+	w(`setw -g aggressive-resize on`)
+	w(`set -g set-titles on`)
+	w(`set -g set-titles-string "ptln · #W"`)
+	w(``)
+	w(`# ---- one control surface: ctrl-\ opens THE menu (sessions + commands, hotkeys shown) ----`)
+	w(`set -g prefix None`)
+	w("bind -n 'C-\\' run-shell " + shQuote(selfExe()+" tmux --menu"))
+	for i := 1; i <= 9; i++ {
+		w(fmt.Sprintf(`bind -n M-%d select-window -t %d`, i, i))
+	}
+	w(``)
+	w(`# ---- workspace snapshot: --resume reflects the last detach, like the mux quit hook ----`)
+	w(`set-hook -g client-detached ` + shQuote("run-shell "+shQuote(selfExe()+" tmux --detached")))
+	w(`set-hook -g window-unlinked ` + shQuote("run-shell "+shQuote(selfExe()+" tmux --save-workspace")))
+	w(``)
+	w(`# ---- status bar (partyline brand) ----`)
+	w(`set -g status on`)
+	w(`set -g status-position bottom`)
+	w(`set -g status-interval 5`)
+	w(`set -g status-style "bg=#101010,fg=#8a8a8a"`)
+	w(`set -g status-left "#[fg=` + amber + `,bold] ☎ PARTYLINE #[default]"`)
+	w(`set -g status-left-length 24`)
+	w(`# the menu's front door lives ON the ribbon — nobody should have to guess the chord`)
+	w(`set -g status-right "#[fg=#8a8a8a]menu #[fg=` + amber + `,bold]ctrl-\\#[default]#[fg=#8a8a8a] · %H:%M #[fg=` + amber + `][tmux proto]#[default] "`)
+	w(`set -g status-right-length 48`)
+	w(`setw -g window-status-separator ""`)
+	w(`# names truncate on the ribbon so a dozen sessions stay readable — full names in the menu`)
+	w(`setw -g window-status-format "#[fg=#8a8a8a] #{?@ptln_shared,⇡ ,}#I·#{=/14/…:window_name} "`)
+	w(`setw -g window-status-current-format "#[bg=` + pill + `,fg=#101010,bold] #{?@ptln_shared,⇡ ,}#I·#{=/14/…:window_name} #[default]"`)
+	w(`setw -g window-status-activity-style "fg=` + amber + `"`)
+	w(`set -g message-style "bg=#101010,fg=` + amber + `"`)
+	w(`set -g mode-style "bg=` + amber + `,fg=#101010"`)
+	w(`# the menu wears the same clothes as every ptln modal: amber rounded frame, ink ground,`)
+	w(`# pill-pink selection — one visual language, not tmux's default costume over ptln's bar.`)
+	w(`set -g popup-style "bg=#101010,fg=#8a8a8a"`)
+	w(`set -g popup-border-style "fg=` + amber + `,bg=#101010"`)
+	w(`set -g popup-border-lines rounded`)
+	w(`set -g pane-border-style "fg=#3a3a3a"`)
+	w(`set -g pane-active-border-style "fg=` + amber + `"`)
+	return b.String()
+}
