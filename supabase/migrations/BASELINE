@@ -1,0 +1,142 @@
+# BASELINE — migrations that are HISTORY, not instructions.
+#
+# WHY THIS EXISTS. A migration is only replayable until a LATER migration changes what it depends
+# on. 0017_perf_rpc_consolidation.sql joins on `orgs.personal`; 20260728070000_one_org_per_user.sql
+# dropped that column. So 0017 can never run against the current schema — it is not a retryable
+# failure, it is a permanent one.
+#
+# That only matters if a row goes missing from schema_migrations, and one did: before apply+record
+# were made atomic (see apply-migrations.sh), an interrupted deploy could leave a migration APPLIED
+# BUT UNRECORDED. The atomic fix stops NEW gaps; it cannot repair OLD ones. Staging carried such a
+# scar for 0017 and it detonated on 2026-08-01, twice, halting deploys until someone reconciled the
+# ledger by hand.
+#
+# WHAT THIS FILE DOES. Every version listed here is RECORDED rather than RUN — but only when the
+# database already has a schema. On a genuinely fresh database they still execute normally, or a new
+# environment would come up with a recorded history and no tables at all. That condition is the
+# whole safety of this mechanism; see apply-migrations.sh.
+#
+# WHAT IT DOES NOT DO. The .sql files stay exactly where they are. They remain the record of how the
+# schema got here, and they are still what builds a database from nothing. This only stops them
+# being re-executed against a schema that has moved on.
+#
+# The numbered era is closed — everything since is timestamped — which is what makes this a clean
+# line to draw.
+
+0001_core.sql
+
+0002_participants.sql
+
+0003_reaper.sql
+
+0004_teams_profiles_notify_slack.sql
+
+0005_invite_creator.sql
+
+0006_relay_pool.sql
+
+0007_account_linking.sql
+
+0008_session_key.sql
+
+0009_billing_plan.sql
+
+0010_member_access.sql
+
+0011_signup_notify.sql
+
+0012_authz_hardening.sql
+
+0013_slack_app.sql
+
+0014_pending_invites_rpc.sql
+
+0015_perf_indexes_and_email_rpc.sql
+
+0016_session_announced.sql
+
+0017_perf_rpc_consolidation.sql
+
+0018_parties.sql
+
+0019_close_idle_parties.sql
+
+0020_party_modes.sql
+
+0021_loops_welcome.sql
+
+0022_party_documents.sql
+
+0023_daemons.sql
+
+0024_daemon_projects_and_launch.sql
+
+0025_launch_kill.sql
+
+0026_common_ground.sql
+
+0027_common_ground_projects.sql
+
+0028_team_scribe.sql
+
+0029_scribe_proposals.sql
+
+0030_prune_status.sql
+
+0031_thread_presence.sql
+
+0032_overview_kind.sql
+
+0033_presence_worktree.sql
+
+0034_block_entities.sql
+
+0035_profile_onboarding.sql
+
+0036_runs.sql
+
+0037_run_tasks.sql
+
+0038_perf_indexes.sql
+
+0039_run_needs_approval.sql
+
+0040_run_max_tokens.sql
+
+0041_run_task_claim.sql
+
+0042_run_merge_policy.sql
+
+0043_run_task_pr_url.sql
+
+0044_run_task_detail.sql
+
+0045_daemon_config.sql
+
+0046_daemon_restart.sql
+
+0047_run_events.sql
+
+0048_run_proposal_kind.sql
+
+0049_project_metadata.sql
+
+0050_cli_telemetry.sql
+
+0051_daemon_project_assignments.sql
+
+0052_daemon_relabels.sql
+
+0053_runs_backlog_rank.sql
+
+0054_run_chains.sql
+
+0055_run_logs.sql
+
+0056_run_resume.sql
+
+0057_run_restart.sql
+
+0058_auto_resume.sql
+
+0059_run_accepted.sql
