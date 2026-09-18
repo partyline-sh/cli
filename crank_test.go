@@ -1,0 +1,399 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"partyline.sh/partyline/internal/api"
+)
+
+func TestParseTasks(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "backlog.txt")
+	os.WriteFile(p, []byte("# a comment\n\nfirst task\n  second task  \n# skip\nthird\n"), 0o644)
+	tasks, err := parseTasks(p, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"first task", "second task", "third"}
+	if len(tasks) != 3 || tasks[0] != want[0] || tasks[1] != want[1] || tasks[2] != want[2] {
+		t.Fatalf("got %v want %v", tasks, want)
+	}
+}
+
+func TestCrankShouldHalt(t *testing.T) {
+	// item cap
+	if halt, _ := crankShouldHalt(3, 0, 0, crankOpts{max: 3}); !halt {
+		t.Fatal("should halt at the item cap")
+	}
+	if halt, _ := crankShouldHalt(2, 0, 0, crankOpts{max: 3}); halt {
+		t.Fatal("should NOT halt before the cap")
+	}
+	// consecutive failures
+	if halt, why := crankShouldHalt(5, 2, 0, crankOpts{haltOnFail: 2}); !halt || why == "" {
+		t.Fatalf("should halt on 2 consecutive fails: halt=%v why=%q", halt, why)
+	}
+	if halt, _ := crankShouldHalt(5, 1, 0, crankOpts{haltOnFail: 2}); halt {
+		t.Fatal("one failure should not halt")
+	}
+	// max=0 means unlimited
+	if halt, _ := crankShouldHalt(100, 0, 0, crankOpts{max: 0, haltOnFail: 2}); halt {
+		t.Fatal("max=0 must not cap")
+	}
+}
+
+// TestCrankShouldHaltTokenCeiling pins the O.5 stop condition in isolation: halt once the
+// accumulated worklist tokens reach --max-tokens, never below it, and never when the ceiling is off.
+func TestCrankShouldHaltTokenCeiling(t *testing.T) {
+	if halt, why := crankShouldHalt(1, 0, 120, crankOpts{maxTokens: 100}); !halt || why == "" {
+		t.Fatalf("should halt once tokens cross the ceiling: halt=%v why=%q", halt, why)
+	}
+	if halt, _ := crankShouldHalt(1, 0, 80, crankOpts{maxTokens: 100}); halt {
+		t.Fatal("should NOT halt below the ceiling")
+	}
+	// maxTokens=0 (default) = off: even a huge total must not halt on tokens.
+	if halt, _ := crankShouldHalt(50, 0, 1_000_000, crankOpts{maxTokens: 0}); halt {
+		t.Fatal("maxTokens=0 must never halt on tokens")
+	}
+}
+
+// TestRunCrankWithHaltsOnTokenBudget drives the loop with a fake per-task usage sequence: with a
+// ceiling, it runs tasks until the accumulated total crosses --max-tokens then stops BEFORE the
+// next task; with --max-tokens 0 it never halts on tokens. This is the O.5 definition-of-done.
+func TestRunCrankWithHaltsOnTokenBudget(t *testing.T) {
+	tasks := []string{"t1", "t2", "t3", "t4"}
+	// Each task's worker reports 60 tokens.
+	fakeExec := func() (taskExec, *[]int) {
+		var ran []int
+		return func(i int, task, prompt string) crankResult {
+			ran = append(ran, i)
+			return crankResult{task: task, branch: fmt.Sprintf("b%d", i), ok: true, tokens: 60}
+		}, &ran
+	}
+
+	// Ceiling 100: task0 (0→60) and task1 (60→120) run, then usedTokens>=100 halts before task2.
+	ex, ran := fakeExec()
+	runCrankWith(tasks, crankOpts{maxTokens: 100}, ex, runReporter{})
+	if len(*ran) != 2 || (*ran)[0] != 0 || (*ran)[1] != 1 {
+		t.Fatalf("expected tasks 0,1 to run then halt on the token budget; ran=%v", *ran)
+	}
+
+	// Ceiling 0 (off): all four run regardless of tokens.
+	ex, ran = fakeExec()
+	runCrankWith(tasks, crankOpts{maxTokens: 0}, ex, runReporter{})
+	if len(*ran) != 4 {
+		t.Fatalf("maxTokens=0 must not halt on tokens; ran=%v", *ran)
+	}
+}
+
+// TestRunCrankWithReportsTaskEvents pins the O.3 self-reporting contract: with a run reporter
+// live, crank emits `queued` for the whole worklist up front, then `running` before each task and
+// a terminal `done`/`failed` (carrying branch + note) after — in order. A fake exec stands in for
+// the real worktree+worker so the loop's telemetry is what's under test, not `claude`.
+func TestRunCrankWithReportsTaskEvents(t *testing.T) {
+	tasks := []string{"task one", "task two"}
+	var got []api.RunTaskUpdate
+	report := runReporter{post: func(tr api.RunTaskUpdate) { got = append(got, tr) }}
+	// exec: task 0 succeeds (branch b0, with a summary + tokens), task 1 fails (branch b1, "boom").
+	exec := func(i int, task, prompt string) crankResult {
+		if i == 0 {
+			return crankResult{task: task, branch: "b0", ok: true, note: "committed", summary: "edited foo.go", tokens: 1200}
+		}
+		return crankResult{task: task, branch: "b1", ok: false, note: "boom"}
+	}
+	runCrankWith(tasks, crankOpts{}, exec, report)
+
+	want := []struct {
+		idx                          int
+		task, status, branch, detail string
+	}{
+		{0, "task one", "queued", "", ""},
+		{1, "task two", "queued", "", ""},
+		{0, "task one", "running", "", ""},
+		{0, "task one", "done", "b0", "committed"},
+		{1, "task two", "running", "", ""},
+		{1, "task two", "failed", "b1", "boom"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("emitted %d events, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		g := got[i]
+		if g.Idx != want[i].idx || g.Task != want[i].task || g.Status != want[i].status || g.Branch != want[i].branch || g.Detail != want[i].detail {
+			t.Errorf("event %d = %+v, want core %+v", i, g, want[i])
+		}
+	}
+	// #263 (run legibility): the terminal `done` event carries the worker's own summary + tokens.
+	if done := got[3]; done.Summary != "edited foo.go" || done.Tokens != 1200 {
+		t.Errorf("done event missing legibility detail: summary=%q tokens=%d", done.Summary, done.Tokens)
+	}
+	// Lifecycle-only events (queued/running) carry no summary/tokens/duration.
+	if q := got[0]; q.Summary != "" || q.Tokens != 0 || q.DurationMs != 0 {
+		t.Errorf("queued event should carry no result detail: %+v", q)
+	}
+}
+
+// TestRunCrankWithRateLimitBlocks pins the Slice 2 pause contract: a task throttled mid-run
+// (rateLimitResetAt set) is reported `blocked` — NOT `done` (which a resume would SKIP, abandoning
+// the partial work) and NOT `failed` — carrying its resume handle, and the loop STOPS so the fleet
+// doesn't hammer the throttled provider. maybePauseForRateLimit (run-level pause) isn't exercised
+// here: crankOpts{} has no run id, so it returns without touching the process.
+func TestRunCrankWithRateLimitBlocks(t *testing.T) {
+	tasks := []string{"t0", "t1", "t2"}
+	reset := time.Now().Add(2 * time.Hour)
+	var ran []int
+	exec := func(i int, task, prompt string) crankResult {
+		ran = append(ran, i)
+		if i == 0 {
+			return crankResult{task: task, branch: "b0", ok: false, rateLimitResetAt: reset, resumeHandle: "sess-abc"}
+		}
+		return crankResult{task: task, branch: fmt.Sprintf("b%d", i), ok: true, note: "committed"}
+	}
+	var got []api.RunTaskUpdate
+	report := runReporter{post: func(tr api.RunTaskUpdate) { got = append(got, tr) }}
+
+	runCrankWith(tasks, crankOpts{}, exec, report)
+
+	// The rate limit stops the loop after task 0 — t1/t2 never run.
+	if len(ran) != 1 || ran[0] != 0 {
+		t.Fatalf("rate limit must stop the loop after task 0; ran=%v", ran)
+	}
+	// Task 0's terminal event is `blocked` (resumable), carrying the handle for resume-in-place.
+	var term *api.RunTaskUpdate
+	for i := range got {
+		if got[i].Idx == 0 && (got[i].Status == "blocked" || got[i].Status == "done" || got[i].Status == "failed") {
+			term = &got[i]
+		}
+	}
+	if term == nil {
+		t.Fatal("no terminal event for the throttled task")
+	}
+	if term.Status != "blocked" {
+		t.Errorf("throttled task status = %q, want blocked (done→skipped on resume, failed→misleading)", term.Status)
+	}
+	if term.ResumeHandle != "sess-abc" {
+		t.Errorf("throttled task must persist its resume handle; got %q", term.ResumeHandle)
+	}
+}
+
+// TestRunReporterNoRunIDIsNoop pins that self-reporting is pure telemetry: no run id → a no-op
+// reporter, so a crank invoked without --run (plain `ptln crank`) never tries to report.
+func TestRunReporterNoRunIDIsNoop(t *testing.T) {
+	if newRunReporter("").post != nil {
+		t.Fatal("no run id must yield a no-op reporter (post == nil)")
+	}
+	// A run id but no device token in the env is still a no-op (nothing to auth with).
+	t.Setenv("PARTYLINE_DAEMON_TOKEN", "")
+	if newRunReporter("11111111-1111-1111-1111-111111111111").post != nil {
+		t.Fatal("run id without a device token must be a no-op reporter")
+	}
+}
+
+// TestRunCrankWithResumeSkipsDone pins the #81 slice 3a resume contract: given a set of
+// already-`done` indices, runCrankWith runs EXACTLY the remaining tasks and never re-runs a
+// skipped one — while preserving each task's ORIGINAL backlog index in the emitted events (so
+// run_tasks stays aligned for 3b + telemetry). Skipped tasks are also not re-`queued`.
+func TestRunCrankWithResumeSkipsDone(t *testing.T) {
+	tasks := []string{"t0", "t1", "t2", "t3"}
+	skip := map[int]bool{0: true, 2: true} // t0 and t2 already done in the store
+
+	var ran []int
+	exec := func(i int, task, prompt string) crankResult {
+		ran = append(ran, i)
+		return crankResult{task: task, branch: fmt.Sprintf("b%d", i), ok: true, note: "committed"}
+	}
+	type ev struct {
+		idx                          int
+		task, status, branch, detail string
+	}
+	var got []ev
+	report := runReporter{post: func(tr api.RunTaskUpdate) {
+		got = append(got, ev{tr.Idx, tr.Task, tr.Status, tr.Branch, tr.Detail})
+	}}
+
+	runCrankWith(tasks, crankOpts{resume: true, resumeSkip: skip}, exec, report)
+
+	// Only the non-skipped tasks run, at their ORIGINAL indices.
+	if len(ran) != 2 || ran[0] != 1 || ran[1] != 3 {
+		t.Fatalf("expected only tasks 1,3 to run at original indices; ran=%v", ran)
+	}
+
+	// Events: queued for 1 and 3 only (no re-queue of skipped 0,2), then running+done per task,
+	// all carrying the original index.
+	want := []ev{
+		{1, "t1", "queued", "", ""},
+		{3, "t3", "queued", "", ""},
+		{1, "t1", "running", "", ""},
+		{1, "t1", "done", "b1", "committed"},
+		{3, "t3", "running", "", ""},
+		{3, "t3", "done", "b3", "committed"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("emitted %d events, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("event %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestFirstWords(t *testing.T) {
+	if got := firstWords("add a dark mode toggle to the navbar", 4); got != "add a dark mode" {
+		t.Fatalf("got %q", got)
+	}
+	if got := firstWords("short", 4); got != "short" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// crankPRTitle + crankPRBody build the PR a crank run opens. The title must be a clean, capped,
+// single-line summary of the ORIGINAL task — never the retry-wrapper prose (the bug that produced
+// "crank: A previous attempt was REJECTED …"). The body must carry the task + the agent's summary,
+// not the old "Opened automatically by ptln crank." placeholder.
+func TestCrankPRTitleAndBody(t *testing.T) {
+	// The title is the task's first non-blank line, whitespace collapsed, no "crank:" prefix. (That
+	// the title is built from the ORIGINAL task and never the retry-wrapped prompt is enforced
+	// structurally by taskExec's separate task/prompt params — realTaskExec titles from `task`.)
+	if got := crankPRTitle("Add rate limiting to the login endpoint\n\nmore detail here"); got != "Add rate limiting to the login endpoint" {
+		t.Fatalf("title = %q", got)
+	}
+	// Long tasks are capped with an ellipsis so the title reads as a title.
+	long := strings.Repeat("x", 200)
+	if got := crankPRTitle(long); len([]rune(got)) > 73 || !strings.HasSuffix(got, "…") {
+		t.Fatalf("long title not capped: len=%d %q", len([]rune(got)), got)
+	}
+	// The body carries both the task and the agent's summary — not the old placeholder.
+	body := crankPRBody("Add rate limiting", "Added a token bucket to authRoute; reviewer should check the window.")
+	for _, want := range []string{"## Task", "Add rate limiting", "## What changed", "token bucket", "ptln"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("body missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "Opened automatically by ptln crank.") {
+		t.Fatalf("body still uses the placeholder:\n%s", body)
+	}
+	// A missing summary degrades gracefully, never to an empty section.
+	if got := crankPRBody("t", ""); !strings.Contains(got, "did not report a summary") {
+		t.Fatalf("empty summary not handled: %s", got)
+	}
+}
+
+// rejectedRetryPrompt is the ONE wording both retry paths share — the in-run repair loop and a web
+// Continue on a quarantined run. It must lead with the fix-don't-rebuild instruction, carry the
+// findings verbatim, and end with the original task so the builder re-reads the actual spec.
+func TestRejectedRetryPrompt(t *testing.T) {
+	p := rejectedRetryPrompt("VERDICT: FAIL — control is in the wrong panel", "Add attach UI to the describe modal")
+	for _, want := range []string{
+		"REJECTED by an independent code reviewer",
+		"FIX the findings below",
+		"VERDICT: FAIL — control is in the wrong panel",
+		"--- THE ORIGINAL TASK ---\nAdd attach UI to the describe modal",
+	} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, p)
+		}
+	}
+	if strings.Index(p, "REVIEWER FINDINGS") > strings.Index(p, "THE ORIGINAL TASK") {
+		t.Fatal("findings must come BEFORE the original task")
+	}
+}
+
+// isEntitlementBlock is the line between "wait for the reset" and "a reset won't help." The bug it
+// prevents: an entitlement refusal (overage disabled / credits required) that arrived on a run which
+// ALSO saw an allowed 5-hour event was labeled "rate limit — resets 11:30", sending the owner to
+// wait for a reset that could never clear a billing block.
+func TestIsEntitlementBlock(t *testing.T) {
+	for _, s := range []string{
+		"Usage credits are required for this model.",
+		`{"overageDisabledReason":"org_level_disabled"}`,
+		"this model isn't enabled for your org",
+		"insufficient credits",
+	} {
+		if !isEntitlementBlock(s) {
+			t.Errorf("should be entitlement: %q", s)
+		}
+	}
+	for _, s := range []string{
+		"rate limit reached, resets in 5 hours",
+		"429 too many requests",
+		"",
+	} {
+		if isEntitlementBlock(s) {
+			t.Errorf("should NOT be entitlement: %q", s)
+		}
+	}
+}
+
+// taskBranchName is the branch IDENTITY for a run's task — it must be unique per RUN, stable within
+// a run, and derived from the REAL task even when a legacy retry store polluted the task text with
+// the rejection preamble. The regression this locks out: four unrelated retried runs all slugged to
+// "crank-01-A-previous-attempt-at", shared one branch, and piled commits into one franken-PR (#499).
+func TestTaskBranchName(t *testing.T) {
+	wrapped := rejectedRetryPrompt("the tests were not run", "Fix the flaky login test\nmore detail")
+
+	// Two different runs with the SAME (wrapped, colliding) task text get DIFFERENT branches.
+	a := taskBranchName("1a98ef58-3fc7-461f-b0a0-82b4deb6e861", 0, wrapped)
+	b := taskBranchName("05203e73-1ea2-4f97-93e1-3dcf689c586b", 0, wrapped)
+	if a == b {
+		t.Fatalf("branch collided across runs: %q", a)
+	}
+	// Same run, same task, asked twice → the SAME branch (resume-in-place / restart depend on it).
+	if again := taskBranchName("1a98ef58-3fc7-461f-b0a0-82b4deb6e861", 0, wrapped); again != a {
+		t.Fatalf("branch not stable within a run: %q vs %q", a, again)
+	}
+	// The slug comes from the ORIGINAL task, never the retry preamble. "the" is filler and is
+	// dropped now (branch_name.go), so the identifying words are what remains.
+	if strings.Contains(a, "previous-attempt") || !strings.Contains(a, "Fix-flaky-login") {
+		t.Fatalf("slug built from the wrapper, not the task: %q", a)
+	}
+	// No run id (manual crank) → the legacy SHAPE, unchanged (the slug itself is filler-free).
+	if got := taskBranchName("", 0, "Fix the flaky login test"); got != "crank-01-Fix-flaky-login-test" {
+		t.Fatalf("legacy shape = %q", got)
+	}
+}
+
+// originalTask recovers the real task from a legacy retry-wrapped store entry, and is the identity
+// function on a pristine one.
+func TestOriginalTask(t *testing.T) {
+	if got := originalTask(rejectedRetryPrompt("findings", "Ship the widget")); got != "Ship the widget" {
+		t.Fatalf("wrapped → %q", got)
+	}
+	if got := originalTask("Ship the widget"); got != "Ship the widget" {
+		t.Fatalf("pristine → %q", got)
+	}
+}
+
+// TestClampMaxRepairs pins crank's OWN --max-repairs gate (#569) — the hand-typed path, independent
+// of the daemon's validMaxRepairs. 0 is a real value ("first rejection quarantines"), the ceiling is
+// inclusive, and anything unparseable or out of range leaves the current value (the default) alone
+// rather than becoming it.
+func TestClampMaxRepairs(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  string
+		want int
+	}{
+		{name: "zero is a real value: no repair attempt", arg: "0", want: 0},
+		{name: "the default, stated explicitly", arg: "2", want: defaultMaxRepairRounds},
+		{name: "the ceiling itself is allowed", arg: "5", want: maxRepairRoundsCeiling},
+		{name: "surrounding whitespace tolerated", arg: " 3 ", want: 3},
+		{name: "over the ceiling keeps the default", arg: "6", want: defaultMaxRepairRounds},
+		{name: "absurd value keeps the default", arg: "1000", want: defaultMaxRepairRounds},
+		{name: "negative keeps the default", arg: "-1", want: defaultMaxRepairRounds},
+		{name: "non-numeric keeps the default", arg: "lots", want: defaultMaxRepairRounds},
+		{name: "empty keeps the default", arg: "", want: defaultMaxRepairRounds},
+		{name: "trailing garbage is NOT half-parsed", arg: "3rounds", want: defaultMaxRepairRounds},
+		{name: "a flag-shaped value keeps the default", arg: "--allow-bash", want: defaultMaxRepairRounds},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := clampMaxRepairs(tt.arg, defaultMaxRepairRounds); got != tt.want {
+				t.Fatalf("clampMaxRepairs(%q, %d) = %d, want %d", tt.arg, defaultMaxRepairRounds, got, tt.want)
+			}
+		})
+	}
+}
