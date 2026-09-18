@@ -1,0 +1,44 @@
+# NO REVERSE PROXY, NO TLS. An overlay for docker-compose.yml, not a replacement:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml up -d
+#
+# WHY IT EXISTS. On a private network — Tailscale, a LAN, or behind somebody else's proxy — Caddy
+# and certificates are pure friction: there is no public name to get a certificate for, port 80 may
+# already belong to something else, and ACME cannot validate a host the internet cannot reach. This
+# overlay stops running the edge and publishes the two services a BROWSER has to reach directly.
+#
+# IT IS AN OVERLAY BECAUSE THE DEFAULT MUST NOT MOVE. Compose has no way to make a `ports:` entry
+# conditional, so publishing web and keycloak from the main file would open two host listeners on
+# every existing box. Here they exist only when you ask for this file by name.
+#
+# WHAT YOU GIVE UP. Traffic is plain HTTP: anyone who can see the wire sees session cookies and
+# every byte of the app. That is a defensible trade on a private network and nowhere else. Do not
+# point this at the internet — put a proxy you control in front and go back to the default file.
+#
+# TWO PORTS, NOT ONE. Caddy was routing three things on one hostname: the app, /rest/v1 to
+# PostgREST, and /auth to Keycloak. PostgREST is only ever read server-side over the compose
+# network, so it needs no port. Keycloak is reached by the BROWSER, during the sign-in redirect, so
+# it does. That is why this publishes two.
+#
+# THE HOST IN SITE_URL MUST RESOLVE FROM INSIDE THE CONTAINERS TOO. The web container fetches the
+# OIDC discovery document and the JWKS from OIDC_ISSUER itself, so a LAN or Tailscale address works
+# and `localhost` does not — inside the container that is the container.
+#
+# scripts/env-bootstrap.sh --no-proxy writes every value below into .env for you.
+services:
+  # The edge, stopped. Same seam MINIO_REPLICAS uses on the bundled MinIO.
+  caddy:
+    deploy:
+      replicas: ${CADDY_REPLICAS:-0}
+
+  # The app, published directly. Container-side is still 3000.
+  web:
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${WEB_PORT:-8080}:3000"
+
+  # The identity provider, published directly, because sign-in is a browser redirect to it.
+  # KC_HTTP_RELATIVE_PATH stays /auth, so the URL is http://<host>:<KEYCLOAK_PORT>/auth/... and
+  # OIDC_PUBLIC_URL / OIDC_ISSUER must be written to match.
+  keycloak:
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${KEYCLOAK_PORT:-8081}:8080"
