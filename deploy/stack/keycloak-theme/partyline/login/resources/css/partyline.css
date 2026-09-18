@@ -1,0 +1,161 @@
+/* partyline sign-in — layered over Keycloak's stock login theme.
+ *
+ * Everything here is a re-skin: colour, type and spacing. No element is moved and no markup is
+ * assumed beyond the class names Keycloak has carried for years. If a selector below stops
+ * matching after an upgrade, the page degrades to stock Keycloak — legible, usable, just not
+ * branded — which is the right failure for a sign-in page.
+ *
+ * Colours are partyline's, from internal/brand: amber #ff9838, and the wordmark gradient
+ * #ffaa3c → #ff5e8a → #df5bff.
+ */
+
+:root {
+  --ptln-bg: #101010;
+  --ptln-panel: #171717;
+  --ptln-line: #2a2a2a;
+  --ptln-ink: #ededed;
+  --ptln-dim: #8a8a8a;
+  --ptln-amber: #ff9838;
+  --ptln-pink: #ff5e8a;
+  --ptln-violet: #df5bff;
+}
+
+body.login-pf,
+.login-pf body,
+html {
+  background: var(--ptln-bg) !important;
+  color: var(--ptln-ink);
+}
+
+/* Keycloak paints a background image on this element; the brand is a flat ground plus one
+   gradient rule, so the image is removed rather than layered under. */
+.login-pf-page,
+#kc-container,
+.login-pf body {
+  background-image: none !important;
+}
+
+.login-pf-page {
+  padding-top: 6vh;
+}
+
+/* The card. Keycloak's default is a white sheet; this is the dark panel the rest of the product
+   uses, with a hairline rather than a shadow. */
+#kc-content,
+.card-pf,
+#kc-form-login,
+.login-pf-page .card-pf {
+  background: var(--ptln-panel) !important;
+  border: 1px solid var(--ptln-line) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  color: var(--ptln-ink);
+}
+
+/* The one gradient in the page, along the top edge of the card — the wordmark's own ramp. */
+.login-pf-page .card-pf {
+  border-top: 2px solid transparent !important;
+  background-image:
+    linear-gradient(var(--ptln-panel), var(--ptln-panel)),
+    linear-gradient(90deg, var(--ptln-amber), var(--ptln-pink), var(--ptln-violet)) !important;
+  background-origin: border-box !important;
+  background-clip: padding-box, border-box !important;
+}
+
+#kc-header-wrapper,
+#kc-page-title,
+.login-pf-page .login-pf-header h1 {
+  color: var(--ptln-ink) !important;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+label,
+.control-label,
+#kc-form-options,
+.login-pf-page .login-pf-signup,
+.kc-login-tooltip {
+  color: var(--ptln-dim) !important;
+}
+
+/* Inputs. The focus ring is the amber, because the accent is what tells you where you are. */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+.pf-c-form-control,
+#kc-form-login input {
+  background: #0d0d0d !important;
+  border: 1px solid var(--ptln-line) !important;
+  border-radius: 7px !important;
+  color: var(--ptln-ink) !important;
+  padding: .6rem .7rem !important;
+}
+
+input:focus,
+.pf-c-form-control:focus,
+#kc-form-login input:focus {
+  border-color: var(--ptln-amber) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(255, 152, 56, .18) !important;
+}
+
+/* The primary button carries the gradient; hover lifts it rather than changing hue, so the
+   brand ramp stays the same object in both states. */
+input[type="submit"],
+.pf-c-button.pf-m-primary,
+#kc-login {
+  background: linear-gradient(90deg, var(--ptln-amber), var(--ptln-pink)) !important;
+  border: none !important;
+  border-radius: 7px !important;
+  color: #101010 !important;
+  font-weight: 700 !important;
+  letter-spacing: .01em;
+  padding: .6rem 1rem !important;
+}
+
+input[type="submit"]:hover,
+.pf-c-button.pf-m-primary:hover,
+#kc-login:hover {
+  filter: brightness(1.08);
+}
+
+a,
+#kc-registration a,
+#kc-info-message a {
+  color: var(--ptln-amber) !important;
+}
+
+a:hover {
+  color: var(--ptln-pink) !important;
+}
+
+/* Alerts: readable on the dark ground. Keycloak's defaults assume a white page, so an error on
+   an unstyled dark theme is the classic pale-on-pale unreadable box. */
+.alert,
+.pf-c-alert {
+  background: #1c1414 !important;
+  border: 1px solid #4a2a2a !important;
+  color: #ffb4b4 !important;
+  border-radius: 7px !important;
+}
+
+.alert-success,
+.pf-m-success {
+  background: #121c14 !important;
+  border-color: #2a4a2f !important;
+  color: #b6f0c2 !important;
+}
+
+.alert-warning,
+.pf-m-warning {
+  background: #1e1a10 !important;
+  border-color: #4a3f22 !important;
+  color: #f2d9a0 !important;
+}
+
+/* The realm's displayNameHtml already carries the ☎ PARTYLINE wordmark (set by kcadm in
+   server_install_keycloak.go), so the header needs spacing rather than content. */
+#kc-header,
+.login-pf-page-header {
+  margin-bottom: 1.25rem;
+}
