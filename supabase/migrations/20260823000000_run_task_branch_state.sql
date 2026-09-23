@@ -1,0 +1,21 @@
+-- Verified branch state on a finished task (#602).
+--
+-- partyline knew a branch's NAME and nothing about its STATE: after a task finished, nothing could
+-- answer "did this produce anything?", "is it still there?" or "has it landed?" — so finished work
+-- looked unfinished indefinitely, and nothing downstream could safely reclaim anything.
+--
+-- branch_state: the daemon's LOCAL-GIT probe at task completion. Shape:
+--   { "base": "origin/main", "commits_ahead": 3, "files_changed": 2, "insertions": 40,
+--     "deletions": 4, "counted": true, "worktree_exists": false, "merged": "unmerged" }
+--
+-- merged is a TRI-STATE — "merged" | "unmerged" | "unknown" — and `counted` says whether the ahead
+-- count and diffstat could be computed at all. Both exist so "we could not tell" can never be read
+-- as "not merged" (or as "changed nothing"): collapsing those is how a later janitor deletes live
+-- work. "Merged" means the base branch CONTAINS the branch tip (git merge-base --is-ancestor after
+-- a fetch), not that a pull request object says so — no host API and no credentials are involved,
+-- so it reads the same against GitHub, GitLab, Gitea or a bare remote.
+--
+-- Null on existing rows and on any daemon older than the release that probes, which is DISTINCT
+-- from a probe that ran: null = nobody told us. Inert on deploy — nothing reads it until the UI
+-- that renders it ships.
+alter table public.run_tasks add column if not exists branch_state jsonb;
