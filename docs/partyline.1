@@ -1,0 +1,260 @@
+.\" partyline(1) — man page. Rendered by `ptln man`; installed to man1 by the deb/rpm/cask.
+.TH PARTYLINE 1 "2026-10-17" "partyline" "partyline manual"
+.SH NAME
+partyline, ptln \- manage AI coding sessions, and keep what the team learns about a repo in the repo
+.SH SYNOPSIS
+.B ptln
+.RI [ command ]
+.RI [ options ]
+.br
+.B ptln
+.RB "\(em open the session manager"
+.br
+.B ptln new
+.I <claude|codex|gemini|opencode|goose|antigravity>
+.RB [ \-\-worktree
+.IR name ]
+.RB [ \-\-keep-going
+.IR N ]
+.br
+.SH DESCRIPTION
+One binary, two things.
+.TP
+.B Session manager
+Every AI coding session on this machine in one list \(em across engines, directories and git
+worktrees. Resume one, fork one into a worktree, split the window, rename, pin, or delete. Sessions
+outlive the terminal they were started in, and the manager finds them again after a reboot.
+.TP
+.B Repo\(hylocal memory
+What the team has learned about a repository, kept as one markdown file per fact in
+.B memory/
+INSIDE that repository. Checking out the code checks out its context; a fact is reviewed in the
+same pull request as the change that taught it. There is no server, no account and no second
+repository to clone.
+.PP
+Partyline never commits your repository. A fact is written and left in your working tree for you to
+commit with the change it came from.
+.SH COMMANDS
+.TP
+.B ptln
+Open the session manager. The only argument\(hyless command, because it is the one you run most.
+.TP
+.B ptln new \fI<tool>\fR [dir] [flags]
+Start a new session with an engine, optionally in a new git worktree. Arguments after the engine
+are passed through to it untouched.
+.TP
+.B ptln memory \fI<brief|add|ls|edit|append|rm|where|map|hooks|build|harvest|propose>\fR
+The repository's facts. See
+.B MEMORY
+below.
+.TP
+.B ptln tmux \fR[\-\-resume|\-\-quit|\-\-print\-conf]
+The tmux session host that keeps sessions alive between terminals.
+.TP
+.B ptln wt \fR[ls|rm \fIbranch\fR|prune]
+Git worktrees created for sessions: list them, remove one, or prune the ones whose session is gone.
+.TP
+.B ptln keepgoing \fR[status|off]
+Arm or disarm the keep\(hygoing hook on a session, which answers "continue?" a bounded number of
+times so a long task is not stopped by a prompt nobody is there to answer.
+.TP
+.B ptln llms
+The session manager, named explicitly. The bare command does the same.
+.TP
+.B ptln welcome
+The first\(hyrun switchboard: the few things worth doing when you have no sessions yet.
+.TP
+.B ptln tray
+The macOS menu bar companion \(em live session count, and what is waiting on you.
+.TP
+.B ptln state
+A JSON snapshot of this machine's live sessions, for the tray and for scripts.
+.TP
+.B ptln upgrade
+Upgrade in place, the same way this binary was installed (Homebrew or the install script).
+.TP
+.B ptln man \fR·\fB ptln help \fR·\fB ptln version
+This page, the command list, and the build.
+.SH MEMORY
+A fact is one markdown file with YAML front\(hymatter under
+.B memory/
+in the repository. One file per fact is deliberate: git merges file ADDITIONS without conflict, so
+two people recording facts on two branches never collide.
+.TP
+.B ptln memory add \fI<kind>\fR "..."
+Record something durable. The kinds are
+.BR decision ", " constraint ", " contract ", " gotcha " and " question .
+.TP
+.B ptln memory brief
+What a session is told before you type.
+.TP
+.B ptln memory ls \fR[\-\-all]
+Every current fact; \fB\-\-all\fR includes superseded ones.
+.TP
+.B ptln memory edit \fI<id>\fR "..." \fR·\fB append \fI<id>\fR "..." \fR·\fB rm \fI<id>\fR
+Facts are MUTABLE. A claim that turned out wrong is rewritten, not annotated with a correction
+filed beside it \(em which is how the previous store ended up briefing an agent with a fact and its
+contradiction at the same time. Nothing is lost: the files are in the repo, so
+.B git log \-p memory/
+is every edit, its author and its date.
+.TP
+.B ptln memory where
+Which directory holds this repository's facts, and how many there are.
+.TP
+.B ptln memory build \fR[\-\-apply] [\-\-remove\-stale]
+Seed a repository that has no facts, and rebuild one whose facts have rotted \(em the same
+operation, because the one that runs on a repository people already use is the one that matters.
+It records only what it can cite: languages and layout, entry points, build and test commands, CI,
+migrations, and the files git shows change most. Anything that would require knowing \fIwhy\fR is
+recorded as an open question instead of a guess, because a seed full of confident, subtly wrong
+claims poisons every session after it. A dry run by default. Facts you wrote yourself are invisible
+to it and are never rewritten or removed; a derived fact whose evidence has vanished is
+\fIproposed\fR for removal and only deleted with \fB\-\-remove\-stale\fR.
+.TP
+.B ptln memory map
+Rewrite the summary block in \fBAGENTS.md\fR, \fBCLAUDE.md\fR and \fBGEMINI.md\fR from the current
+facts. Every fact change does this anyway; the command is for when they drift \(em a merge that
+took someone else's block, or a fact edited by hand in the repo.
+.TP
+.B ptln memory harvest \fR[\-n] \fR·\fB propose \-\-from \fI<src>\fR
+Record what this repository's new commits declare, or a fact mined from another system.
+.SS A fact has to earn its place
+The test, applied when a fact is written:
+.I would this still be true and useful to someone who opens this repo in three months and was not
+.IR here ?
+Host and machine state, work\(hyitem status, and anything whose subject is not this repository are
+refused with the reason. The gate is calibrated against real entries that made a real store feel
+like junk \(em "the Mac mini's disk keeps filling up" filed beside interface contracts \(em and is
+deliberately narrow, because a gate that blocks good facts is worse than no gate.
+.SH ENGINES
+The set is closed: claude, codex, gemini, opencode, goose, antigravity.
+.PP
+The facts are rendered into \fBAGENTS.md\fR, \fBCLAUDE.md\fR and \fBGEMINI.md\fR between managed
+markers. That is the floor and it needs nothing: every engine reads its own file at session start,
+with no hook, no trust prompt and no integration with partyline, so a checkout carries its context
+to engines partyline has never heard of. Your own prose in those files is never touched.
+.PP
+What a file cannot do is refresh. A session that started on Monday will not see a fact recorded on
+Thursday, which is what the hooks add.
+.B ptln memory hooks
+reports which engines refresh mid\(hysession and which still need a trust grant;
+.B \-\-install
+writes the hook where it safely can.
+.TP
+.B Claude
+.B UserPromptSubmit
+\(em wired per session at launch. No config file and no trust gate.
+.TP
+.B Codex
+.BR UserPromptSubmit .
+Trust is granted once in the TUI. Codex disables untrusted hooks \fIsilently\fR \(em
+.B codex exec
+runs with hooks off and says nothing \(em so partyline reports its trust state as unknown rather
+than assuming it, and prints the config for you to paste rather than rewriting a TOML file it
+cannot fully parse.
+.TP
+.B Gemini
+.BR BeforeAgent .
+Needs the workspace trusted, or \fB\-\-skip\-trust\fR.
+.TP
+.B Antigravity
+.BR PreInvocation .
+Needs the directory in \fBtrustedWorkspaces\fR.
+.SH SESSION FLAGS
+.TP
+.B \-\-worktree \fIname\fR
+Start the session in a new git worktree on a branch of that name, so two agents editing the same
+repository never see each other's half\(hywritten files.
+.TP
+.B \-\-keep\-going \fIN\fR
+Answer "continue?" up to N times before stopping and asking you.
+.SH IN A SESSION
+.B ctrl\-\\
+then a key, inside a partyline\(hyhosted session:
+.TP
+.B w
+fork this session into a git worktree
+.TP
+.B n
+new session
+.TP
+.B g
+arm or disarm keep\(hygoing
+.TP
+.B |
+split the window and open a manager in the new pane
+.SH IN THE MANAGER
+.TP
+.B \(rs\(rs⏎
+resume the highlighted session
+.TP
+.B p
+pin it to the top of the list
+.TP
+.B x
+delete it. Confirms first, showing its age, worktree, uncommitted files and whether anything else
+is live in the same tree. A session that is currently running cannot be deleted \(em close it
+first. Deleted sessions move to a trash directory rather than being unlinked.
+.TP
+.B /
+filter
+.TP
+.B D
+open the documentation in a browser
+.TP
+.B ?
+the full key list
+.SH FILES
+.TP
+.B <repo>/memory/*.md
+This repository's facts, one per file. Checked in with the code.
+.TP
+.B <repo>/AGENTS.md\fR, \fBCLAUDE.md\fR, \fBGEMINI.md
+The derived summary, inside managed markers. Partyline only creates one of these if the repository
+has none, and then only \fBAGENTS.md\fR.
+.TP
+.B ~/.partyline/
+Session index, launcher state, the tmux config partyline generates, and the delete trash.
+.SH ENVIRONMENT
+.TP
+.B PARTYLINE_MEMORY_REFRESH=off
+Disable the mid\(hysession refresh. The session\(hystart brief still applies.
+.TP
+.B GEMINI_CLI_TRUST_WORKSPACE
+Gemini's own variable, read only to report whether gemini will actually run the hook here.
+.SH EXAMPLES
+.PP
+Open the session manager:
+.PP
+.nf
+    ptln
+.fi
+.PP
+Start a session in an isolated worktree:
+.PP
+.nf
+    ptln new claude \-\-worktree spike\-auth
+.fi
+.PP
+Seed a legacy repository, review, then keep it:
+.PP
+.nf
+    ptln memory build                  # dry run, with the evidence for each fact
+    ptln memory build \-\-apply
+    git diff memory/                   # they are proposals, not gospel
+.fi
+.PP
+Record something the next person needs, and correct it later:
+.PP
+.nf
+    ptln memory add gotcha "Turbopack rejects a symlinked node_modules; it needs a real directory."
+    ptln memory ls
+    ptln memory edit 20261017\-2013 "...what turned out to be true instead"
+.fi
+.SH SEE ALSO
+.BR git\-worktree (1),
+.BR tmux (1)
+.SH REPORTING BUGS
+https://github.com/partyline\-sh/partyline/issues
+.SH COPYRIGHT
+Open source. See the repository for the licence.
