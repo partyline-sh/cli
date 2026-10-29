@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><meta name="theme-color" content="#141414" /><link
+    rel="manifest"
+    href="/manifest.webmanifest"
+  /><link rel="apple-touch-icon" href="/icon-192.png" /><title>
+    Partyline remote</title
+  >
+  <link rel="stylesheet" href="/theme.css" /><link
+    rel="stylesheet"
+    href="/app.css"
+  /><link rel="stylesheet" href="/layout.css" />
+  <main id="app"></main>
+  <details id="pairing">
+    <summary>Pair another machine</summary>
+    <h1>Pair this phone</h1>
+    <p>
+      Run <code>ptln remote pair</code> on your machine, then paste the string
+      from its popup. Keep the popup open.
+    </p>
+    <button type="button" id="scan">Scan QR code</button
+    ><video hidden playsinline muted></video>
+    <form>
+      <label for="name">Phone name</label
+      ><input
+        id="name"
+        value="Phone"
+        maxlength="80"
+        required
+        autocomplete="off"
+      />
+      <label for="offer">Pairing string</label
+      ><textarea
+        id="offer"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+      ></textarea
+      ><button>Pair</button>
+    </form>
+    <p id="status" role="status"></p>
+  </details>
+  <script type="module" src="/pairing.js"></script>
+  <script type="module" src="/app.js"></script>
+</html>
