@@ -1,0 +1,15 @@
+☎  Where should I look?
+
+No AI sessions found.
+
+Sessions live under a home directory. This one looks in
+/home/partyline
+A session started with a different HOME — after a migration,
+or under another account — is invisible from here.
+
+other homes on this machine holding sessions
+1  /home/old
+p  type a path  if it isn't listed
+q  not now
+
+q / esc / enter cancel

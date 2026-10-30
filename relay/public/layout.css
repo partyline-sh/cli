@@ -1,0 +1,198 @@
+/* One column, sized for a phone: a screen per step, a full-width primary action at the bottom
+   of each, and the safe areas left clear of the notch and the home indicator. */
+* {
+  box-sizing: border-box;
+}
+body {
+  font:
+    17px/1.45 system-ui,
+    -apple-system,
+    sans-serif;
+  background: var(--ground);
+  color: var(--text);
+  margin: 0 auto;
+  max-width: 60rem; /* a machine's terminal views need the width; the setup screens stay narrow */
+  min-height: 100svh;
+  padding: calc(env(safe-area-inset-top) + 1.5rem)
+    calc(env(safe-area-inset-right) + 1.25rem)
+    calc(env(safe-area-inset-bottom) + 1.5rem)
+    calc(env(safe-area-inset-left) + 1.25rem);
+  -webkit-text-size-adjust: 100%;
+}
+h1 {
+  font-size: 1.7rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0 0 0.75rem;
+}
+h2 {
+  font-size: 1.1rem;
+}
+.note {
+  color: var(--muted);
+  margin: 0 0 1.5rem;
+}
+kbd {
+  font:
+    0.9em ui-monospace,
+    monospace;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  padding: 0.05em 0.35em;
+  color: var(--text);
+}
+
+/* Which screen shows: app.ts sets body[data-view]; pairing.ts sets #pairing[data-step]. */
+.screen,
+.step {
+  display: none;
+}
+body[data-view="pair"] #pairing {
+  display: flex;
+  flex-direction: column;
+  max-width: 34rem;
+  margin: 0 auto;
+}
+body[data-view="pair"] #app {
+  display: none;
+}
+#pairing[data-step="scan"] [data-for="scan"],
+#pairing[data-step="name"] [data-for="name"],
+#pairing[data-step="wait"] [data-for="wait"],
+#pairing[data-step="done"] [data-for="done"] {
+  display: flex;
+  flex-direction: column;
+}
+#pairing[data-step="wait"] #pair-cancel,
+#pairing[data-step="done"] #pair-cancel,
+#pairing:not([data-step="done"]) #pair-done {
+  display: none;
+}
+
+button.link.lead {
+  color: var(--text);
+  font-weight: 600;
+}
+.paircode {
+  font:
+    600 3.5rem/1 ui-monospace,
+    monospace;
+  letter-spacing: 0.25em;
+  text-align: center;
+  margin: 1rem 0 0.5rem;
+}
+.paircode:empty {
+  display: none;
+}
+.steps {
+  margin: 0 0 1.5rem;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+button {
+  cursor: pointer;
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+button.primary {
+  width: 100%;
+  margin-top: 0.5rem;
+  background: var(--focus);
+  border-color: var(--focus);
+  color: #1b1a19;
+  font-weight: 600;
+  padding: 1rem;
+}
+button.primary:disabled {
+  opacity: 0.6;
+}
+button.link {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 0.75rem 0;
+  align-self: center;
+}
+label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0.35rem;
+}
+input,
+textarea {
+  width: 100%;
+}
+textarea {
+  height: 7rem;
+  font:
+    0.8rem ui-monospace,
+    monospace;
+}
+video {
+  width: 100%;
+  border-radius: 0.75rem;
+  margin-top: 1rem;
+}
+#paste {
+  display: flex;
+  flex-direction: column;
+}
+#paste[hidden] {
+  display: none;
+}
+#status {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  margin: 1rem 0 0;
+}
+#status:empty {
+  display: none;
+}
+
+/* The machine list and a machine's views. */
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+section {
+  overflow-x: auto;
+}
+#app section > button {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+#app > p {
+  color: var(--muted);
+}
+article {
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem;
+}
+article p {
+  white-space: pre-wrap;
+}
+.terminal {
+  width: max-content;
+}
