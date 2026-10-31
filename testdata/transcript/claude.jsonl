@@ -1,0 +1,3 @@
+{"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "Please run checks"}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "First line\nsecond line"}, {"type": "text", "text": "Another block"}, {"type": "tool_use", "id": "ok", "name": "Bash", "input": {"command": "go test ./..."}}, {"type": "tool_use", "id": "bad", "name": "Read", "input": {"file_path": "missing.go"}}, {"type": "tool_use", "id": "pending", "name": "Edit", "input": {"file_path": "main.go", "old_string": "old"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "ok", "content": "passed"}, {"type": "tool_result", "tool_use_id": "bad", "is_error": true, "content": "missing"}]}}
