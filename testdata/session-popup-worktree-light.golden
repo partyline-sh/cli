@@ -1,0 +1,7 @@
+☎  Worktrees
+
+f  fork this session into a worktree  parallel agent, shared memory
+l  list this repo's worktrees
+r  remove a worktree  guarded — never the repo
+
+q / esc / enter cancel
