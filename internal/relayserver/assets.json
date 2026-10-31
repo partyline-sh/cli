@@ -1,0 +1,35 @@
+{
+  "sources": {
+    "relay/src/app.ts": "dcec343e2a99d97bb64a232e37bb866133d248a61ee572c991b5556f674f4f18",
+    "relay/src/index.ts": "04c331d71469e3d4f452255df23906b8afa4676bb0822b9a91555c983dcb975c",
+    "relay/src/input-protocol.ts": "8658a55f23d675fc851b7c7efd72748159f2200be27721576951dbbbd11c7e63",
+    "relay/src/input.ts": "20f516843f2b1dd6edb3ee707fe48b31c14d62a866bbdd0e58ac88774c46b88c",
+    "relay/src/noise.ts": "4a470c928e9425bd759dec00c46379a8a187224067eb6ae7a8231ed7b03645e7",
+    "relay/src/pairing.ts": "4c9976f4119f7d64575efea60ffdb774f028728bce86b9e80eae0e9f2c2f881c",
+    "relay/src/screens.ts": "e359c604942f5a07007d020782c3d4a4e98c34ea5b24c591700a9d2da433bb98",
+    "relay/src/session.ts": "f355625ffcb325d6881373f8571c9357b27a7d33b4153f830ead4ea538adf880",
+    "relay/public/icon-192.png": "b85f91629e0b73e603beab0b1385058e59302af93078361008fe282c14ff9a8f",
+    "relay/public/icon-512.png": "d6c3486dcc94f67116b9425ba8a75c1b94d39f709e75cac82bb1d9f95c2f799f",
+    "relay/public/index.html": "de745c8a05c2a4c2deda7fea37dc3ac1b135a6a70e800b41263968073e254f16",
+    "relay/public/layout.css": "7802dda31c47d153b60c97ce7592998cdb912b3a203d10e484d2bdef433edede",
+    "relay/public/manifest.webmanifest": "d99a37128e1edaf8cebf44774aec2fa058b5aee81c24c9a99ca02883afb6f340",
+    "relay/public/sw.js": "18b8cb7bdfd1d1d0f36396facfde8e586835e4f9f19d8084647318b9d545b575",
+    "relay/public/theme.css": "3e067451c37777a47968a8761c055c118eb420ca8f22a3e8a8590a1b9653b655",
+    "relay/package-lock.json": "2dba2bd698997de1f57950c171952c87ea736f750654563c16fe21dc7f8c5deb",
+    "relay/scripts/version-shell.mjs": "d5a5887032d4cdd30a8f4dd3d044e03507405b3244605ade54b213032ae485c6",
+    "scripts/selfhost-assets.mjs": "ccad508d073ef34e40e945e50ec9e2c0e2937fea7f754b5d8d3a48585f1fd953"
+  },
+  "assets": {
+    "internal/relayserver/public/app.css": "2281e0514673bccfa87a475fa551cf17419449a43f6d157669203bcd52cf6801",
+    "internal/relayserver/public/app.js": "7413d9b4c83790e107f2eed71344732cab05d26c99fb0bb45f43a2e386b9a2f4",
+    "internal/relayserver/public/icon-192.png": "b85f91629e0b73e603beab0b1385058e59302af93078361008fe282c14ff9a8f",
+    "internal/relayserver/public/icon-512.png": "d6c3486dcc94f67116b9425ba8a75c1b94d39f709e75cac82bb1d9f95c2f799f",
+    "internal/relayserver/public/index.html": "de745c8a05c2a4c2deda7fea37dc3ac1b135a6a70e800b41263968073e254f16",
+    "internal/relayserver/public/layout.css": "7802dda31c47d153b60c97ce7592998cdb912b3a203d10e484d2bdef433edede",
+    "internal/relayserver/public/manifest.webmanifest": "d99a37128e1edaf8cebf44774aec2fa058b5aee81c24c9a99ca02883afb6f340",
+    "internal/relayserver/public/pairing.js": "52c4cb3e5d28267868000d406c0052b034cf8f4876b841425c1ab53241052924",
+    "internal/relayserver/public/session.js": "e50be925fd667dcf538c40beba8aaba36eee25e0187b8a2487eebc5a440900ea",
+    "internal/relayserver/public/sw.js": "7ccbc370fdc903d8cb6d7e43fa959ed5be93864eed71d67d22486bbb0a3f5329",
+    "internal/relayserver/public/theme.css": "3e067451c37777a47968a8761c055c118eb420ca8f22a3e8a8590a1b9653b655"
+  }
+}

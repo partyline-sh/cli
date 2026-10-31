@@ -1,0 +1,1148 @@
+.\" partyline(1) — man page. Rendered by `ptln man`; installed to man1 by the deb/rpm/cask.
+.TH PARTYLINE 1 "2026-10-30" "partyline" "partyline manual"
+.SH NAME
+partyline, ptln \- session manager for AI coding agents, with repository memory and a chat between sessions
+.SH SYNOPSIS
+.B ptln
+.br
+.B ptln new
+.I engine
+.RI [ dir ]
+.RB [ \-\-worktree
+.IR name ]
+.RB [ \-\-keep\-going
+.IR N ]
+.br
+.B ptln memory
+.I subcommand
+.RI [ arguments ]
+.br
+.B ptln chat
+.RI [ subcommand ]
+.br
+.B ptln
+.I command
+.B \-\-help
+.SH DESCRIPTION
+tmux 3.3 or newer is required to host sessions.
+.PP
+On one machine,
+.B ptln
+provides:
+.TP
+.B Session manager
+Lists every Claude Code, Codex, Gemini, opencode, goose and Antigravity session on the machine,
+read from each engine's own session files, across directories and git worktrees. Sessions open in
+one terminal, hosted by a private tmux server, and keep running when the terminal closes.
+.TP
+.B Repository memory
+Facts about a repository, one markdown file each in
+.B memory/
+inside that repository, committed with the code. They are rendered into
+.BR AGENTS.md ,
+.B CLAUDE.md
+and
+.B GEMINI.md
+so every engine reads them when a session starts.
+.TP
+.B Chat
+A room where you and your running sessions exchange messages, and the sessions answer each other.
+.TP
+.B Loops
+Work a session builds in rounds: your checks run on it, then other models review it. See
+.BR LOOPS .
+.PP
+There is no server and no account. partyline never commits to your repositories.
+.PP
+The binary is
+.BR partyline ;
+.B ptln
+is a symlink to it.
+.SH COMMANDS
+.TP
+.B ptln
+Open the session manager. With no sessions on the machine, open the first-run screen.
+.TP
+.B ptln new \fIengine\fR [\fIdir\fR] [\fIflags\fR]
+Start a session in \fIdir\fR (default: the current directory). \fIengine\fR is one of claude,
+codex, gemini, opencode, goose, antigravity. No arguments are passed to the engine: a word after
+\fIengine\fR that is not a partyline flag is taken as \fIdir\fR, and anything after \fIdir\fR is
+ignored.
+.TP
+.B ptln \-\-resume
+Reopen the sessions that were open when you last quit, with the same models and permission modes.
+.TP
+.B ptln llms ls \fR[\-\-all]\fB \fR·\fB resume \fIid\fR \fB\fR·\fB prune \fR[\-\-apply]
+List sessions newest first (\fB\-\-all\fR includes sessions started by other agents); resume one
+session in the current terminal; list sessions whose directory or worktree no longer exists
+(\fB\-\-apply\fR moves them to the trash).
+.TP
+.B ptln llms \-\-roots \fR·\fB \-\-look\-in \fIdir
+Print the home directories sessions are read from; add another one (the \fBHOME\fR a session was
+started under) to read sessions from.
+.TP
+.B ptln memory \fIsubcommand\fR
+Read and write this repository's facts. See
+.BR MEMORY .
+.TP
+.B ptln chat \fR[add|remove|who|send|read|listen]
+Open the chat room, or manage it. See
+.BR CHAT .
+.TP
+.B ptln loop \fIsubcommand\fR
+Commands that agent sessions run, and \fBtab\fR, \fBstatus\fR, \fBresume\fR and \fBdelete\fR for you.
+See
+.BR LOOPS .
+.TP
+.B ptln tmux \fR[\-\-resume|\-\-quit|\-\-print\-conf]
+The tmux server that hosts sessions. \fB\-\-quit\fR saves the set of open sessions, then stops
+every session and the server; run it before updating an engine, then \fBptln \-\-resume\fR.
+.TP
+.B ptln wt \fR[ls|rm \fIbranch\fR|prune [\-\-yes]]
+The git worktrees sessions were started in: list them, remove one, or remove those whose session
+is gone (\fBprune\fR lists them; \fB\-\-yes\fR removes them).
+.TP
+.B ptln keepgoing \fR[status|off]
+List the Claude sessions with keep-going armed, or disarm it on all of them.
+.TP
+.B ptln state
+Print a JSON snapshot of the machine: live sessions, how many are waiting for input, and the
+provider rate limit if one is in effect.
+.TP
+.B ptln theme \fR[Partyline|Blue|Mono|Paperwhite] [\-\-background auto|dark|light]
+The colours partyline draws in. With no argument, print the palette, the background setting and,
+for \fBauto\fR, what the terminal reported. \fBauto\fR asks the terminal its background colour
+(OSC 11) when run outside tmux, and again each time partyline attaches to tmux unless the terminal has
+never answered; the answer is saved for
+the tab bar and popups. \fBt\fR in the session manager cycles the palettes.
+.TP
+.B ptln tray \fR[on|off]
+macOS: start the menu-bar icon now and at login, or stop it and remove the login item. With no
+argument, print whether it is on.
+.TP
+.B ptln upgrade
+Update partyline the way it was installed: \fBbrew upgrade\fR for Homebrew, otherwise the install
+script. \fBptln update\fR is an alias.
+.TP
+.B ptln version \fR·\fB ptln man \fR·\fB ptln help \fR·\fB ptln welcome
+The version and whether a newer one exists; this page; the command list; the first-run screen.
+.SH SESSION FLAGS
+.TP
+.B \-\-worktree \fIname\fR
+Create a git worktree on a new branch \fIname\fR and start the session in it.
+.TP
+.B \-\-with\-state
+With \fB\-\-worktree\fR, copy the current checkout's uncommitted changes and untracked files into
+the new worktree.
+.TP
+.B \-\-keep\-going \fIN\fR
+Claude only. When the session stops, answer "continue?" for it, up to \fIN\fR times. The session
+stops early if it prints the done token it is told about.
+.TP
+.B \-\-goal \fItext\fR
+The instruction given with each keep-going continuation.
+.SH SESSION MANAGER KEYS
+.TP
+.B arrows \fR·\fB g \fR/\fB G
+Move; jump to the top or bottom.
+.TP
+.B / \fR·\fB s \fR·\fB R
+Search; cycle the sort order (last used, oldest, project); refresh.
+.TP
+.B ⏎
+Open the highlighted session. A permission-mode picker comes first.
+.TP
+.B space
+Select several sessions; \fB⏎\fR opens them in one terminal.
+.TP
+.B o
+Open the session in a new terminal tab or window.
+.TP
+.B N \fR·\fB ctrl\-n \fR·\fB n
+New session now; the same with permissions bypassed; new session with options.
+.TP
+.B |
+Pick two sessions and show them side by side.
+.TP
+.B p \fR·\fB r \fR·\fB d
+Pin; rename; show \fBgit diff\fR for the session's repository.
+.TP
+.B x
+Delete. The confirmation shows the session's age, branch, worktree, uncommitted files and whether
+other sessions are live in the same tree. A running session cannot be deleted. Files move to
+\fB~/.partyline/trash/\fR.
+.TP
+.B a \fR·\fB t \fR·\fB D \fR·\fB ? \fR·\fB q
+Show or hide agent sessions; colour theme; open the documentation; list every key; quit.
+.SH IN A SESSION
+Press \fBctrl\-\\\fR to open the menu, then a key. \fB←\fR/\fB→\fR or \fB1\fR\-\fB9\fR switch
+sessions; esc or \fBctrl\-\\\fR again closes it.
+.TP
+.B n \fR·\fB N \fR·\fB t
+New session with options; new session, asking for the engine and permissions; shell window.
+.TP
+.B o
+The session manager.
+.TP
+.B r
+On Sessions: rename the highlighted session, as \fBr\fR in the session manager does; an empty
+name restores the default. On Commands: the relay settings (deploy or update, the saved
+Cloudflare token).
+.TP
+.B c
+The chat room as a popup; \fBctrl\-t\fR in it pins it as a tab.
+.TP
+.B l
+The Loops popup (\fBptln loop tab\fR): every loop and batch on the machine, in five columns
+\(em what needs you, then planned, in progress, in review, done. \fB⏎\fR shows a row's rounds and
+findings, or selects the contractor of a building or reviewing card on the Contractors tab; \fBa\fR on a row that needs you
+opens the approval popup. A done row whose session recorded its PR with
+\fBptln loop pr <id> <url-or-number>\fR shows \fB#\fR\fIn\fR and the PR's checks, which the watcher
+asks \fBgh pr checks\fR for at most every 2 minutes. A batch's steps are built by builders
+partyline starts, which it commits when they pass; nothing is pushed.
+A round or batch review whose reviewer could not run (a usage limit, a crash) never passes on the
+other reviewers' word: the run shows \fB⏸ paused\fR in review, its note names the reviewer and the
+error, and it resumes by itself when a limit lifts, or with \fBptln loop resume <id>\fR.
+\fBd\fR on a card, then \fBd\fR again, stops the loop and deletes it for good (a batch step deletes
+its whole batch), as \fBptln loop delete <id>\fR does. \fBr\fR shows one repository at a time, then
+all again; \fB,\fR opens the loop settings.
+The mouse works too: click a card or contractor to select it, click the selected one to open it, click Board or Contractors to switch, and the wheel moves between cards or scrolls the details.
+.TP
+.B ,
+Loop settings: who builds new batches (an engine, model and effort, the first choice then
+backups), who reviews them (slots, each a list to fail over through), whether to fail over on
+usage limits, the quality standard (built in, or a file), Decisions (\fBloops decide\fR, the
+default, or \fBask me\fR), the arbiter for disputes (with \fBloops decide\fR, reviewer 1 unless you
+choose one), and an optional Jev key.
+With \fBask me\fR, Disputes chooses whether disputes come to you or go to the arbiter. Saved in
+\fI~/.partyline/settings.json\fR. A loop or batch started without \fB--config\fR or \fB--review\fR copies
+them into its config, and keeps the settings it started with. See
+.BR LOOPS .
+.TP
+.B k
+Open Loops on its Contractors tab with the first contractor selected. Clicking a chip opens
+Loops with that contractor selected. The contractor row appears above the tabs
+while a contractor runs or a finished one (\fB✓\fR or \fB✗\fR) has not been seen. \fB⚙N\fR on a
+tab counts the contractors that session's loops have running.
+.TP
+.B a
+The approval popup. With Decisions set to \fBask me\fR, loops wait here for you: a popup with what
+each one will do. With the default, \fBloops decide\fR, nothing waits. Approving asks you to type
+a four-digit code the popup shows in large digits: agents can type into a popup with
+\fBtmux send-keys -K\fR but cannot read it. As you type, the digits typed turn green and a blinking cursor marks the next one. After a decision the popup says what it did and closes after 3 seconds (esc closes it now), or goes back to the list when more is waiting. \fB‼\fR on a tab and "N to approve" on the status bar show when one is waiting.
+A batch of loops is approved once, after the reviewers have read its briefs as a set; its
+steps then run one after another without stopping. With \fBask me\fR, a finding disputed during a
+step is deferred to you (or ruled on by the arbiter, when Disputes says so).
+\fBptln loop batch status\fR lists what each step did.
+.TP
+.B w \fR·\fB g
+Fork this session into a git worktree; arm or disarm keep-going.
+.TP
+.B [ \fR·\fB | \fR(or\fB +\fR)\fB \fR·\fB \- \fR·\fB \\\\
+Scroll history; bring the highlighted session in beside this one (\fB+\fR does the same); move it
+back to its own tab; open a shell pane beside this one.
+.TP
+.B x \fR·\fB q \fR·\fB Q
+Close the highlighted session; detach, leaving everything running; quit every session (saved first).
+.SH MEMORY
+Each fact is a markdown file with YAML front matter in \fB<repo>/memory/\fR. One file per fact
+means facts added on two branches merge without conflict.
+.TP
+.B ptln memory build \fR[\-\-apply] [\-\-remove\-stale]
+Set up or refresh a repository. With \fB\-\-apply\fR it writes a description of the project
+(kind \fBoverview\fR), generated by claude with read-only tools from the last commit, when the
+repository has none; build, test and CI facts it can cite from the files; and, on first setup,
+open questions that only a person can answer. Without \fB\-\-apply\fR it prints what it would write. It never changes a fact a
+person wrote. A derived fact whose evidence is gone is listed, and removed only with
+\fB\-\-remove\-stale\fR.
+.TP
+.B ptln memory build \-\-apply \-\-refresh
+Rewrite the overview from the last commit, starting from the current one, in place. \fBbuild\fR
+also reports how many code commits have landed since the overview was last committed, and lists
+facts that name a file changed since the fact was last committed.
+.TP
+.B ptln memory verify \fIid\fR...
+Mark facts as checked against the code at HEAD by writing \fBverified:\fR into each. A fact counts
+as checked at the last commit that changed its file, so committing the verify clears the flag.
+.TP
+.B ptln memory add \fIkind\fR "\fItext\fR"
+Record a fact. Kinds: \fBoverview\fR (one per repository), \fBdecision\fR, \fBconstraint\fR,
+\fBcontract\fR, \fBgotcha\fR, \fBquestion\fR. An unknown kind is refused with the kind probably
+meant.
+.TP
+.B ptln memory ls \fR[\-\-all]\fB \fR·\fB brief \fR·\fB where
+List current facts; print what a session is told at start; print where the facts are and how many.
+.TP
+.B ptln memory edit \fIid\fR "\fItext\fR" \fR·\fB append \fIid\fR "\fItext\fR" \fR·\fB rm \fIid
+Rewrite, extend or delete a fact. An id prefix is enough. \fBgit log \-p memory/\fR is the history.
+.TP
+.B ptln memory map
+Rewrite the generated block in \fBAGENTS.md\fR, \fBCLAUDE.md\fR and \fBGEMINI.md\fR. Every fact
+change already does this.
+.TP
+.B ptln memory hooks \fR[\-\-install]
+Report which engines refresh facts during a session and which still need a trust grant;
+\fB\-\-install\fR adds the hook where that can be done safely.
+.TP
+.B ptln memory harvest \fR[\-n] [\-\-since \fIrev\fR]
+Record facts that commits declare in \fBPtln\-Decision:\fR, \fBPtln\-Constraint:\fR,
+\fBPtln\-Contract:\fR, \fBPtln\-Gotcha:\fR or \fBPtln\-Question:\fR trailers. \fB\-n\fR prints
+them without writing.
+.TP
+.B ptln memory propose \-\-from \fIsource\fR \fIkind\fR "\fItext\fR"
+Record a fact taken from another system. At least one \fB\-\-from\fR citation
+(\fIsystem\fR:\fIid\fR) is required.
+.SS Rules
+A fact is refused, with the reason, if it records the state of a machine, the status of a work
+item, or something true only for the current session. The refusal quotes the words that matched.
+Questions are exempt. An overview is not checked this way, on add, edit or append.
+.PP
+partyline writes facts and leaves them uncommitted. It creates \fBAGENTS.md\fR only when the
+repository has none of the three files, and changes only the block between its markers.
+.SS Setup from a session
+The first time a partyline session runs in a git repository with no \fBmemory/\fR, the agent
+finishes your request, then offers once to set memory up. If you agree, it runs
+\fBptln memory build \-\-apply\fR, checks the overview, answers the open questions it can verify,
+drafts answers to the rest for you to correct, and records a small number of facts, each naming its
+evidence. It does not commit. The offer is made once per repository on
+this machine.
+.PP
+When the code is 20 or more commits past the overview, the first turn of a session tells the agent
+to ask you once whether to update the memory; if you decline, it asks again after another 20.
+.SS During a session
+Claude sessions started or resumed by partyline get two hooks: one shows facts recorded since the
+session's last turn, and one records up to two facts from the session's recent work, at most once
+every 20 minutes, in repositories that already have \fBmemory/\fR.
+.SH CHAT
+.TP
+.B ptln chat
+Open the room (from a session: \fBctrl\-\\\fR then \fBc\fR opens it as a popup). Type to post; a message goes to everyone unless it contains \fB@\fR\fItab\fR (for
+example \fB@11\fR) or \fB@\fR\fIengine\fR. A bare \fB@\fR is literal text and does not change
+the recipients. \fB@all\fR explicitly addresses everyone, even alongside other mentions.
+Messages are rendered as Markdown. In the room:
+\fB/add\fR \fItab\fR... adds sessions by tab number (\fB11.2\fR for the second pane of a split
+tab), \fB/remove\fR \fItab\fR, \fB/who\fR, \fB/stop\fR [\fItab\fR] and \fB/go\fR [\fItab\fR]
+pause and resume delivery, \fB/clear\fR, \fB/help\fR lists every key, Esc or \fBctrl\-c\fR leaves and
+keeps an unsent draft. Typing \fB@\fR lists who can be mentioned: \fB↑\fR/\fB↓\fR choose, Enter or
+\fBTab\fR inserts, Esc closes the list. Drag the popup's frame to move it; drag the right or bottom
+frame with the right mouse button to resize it. Above the input, one line per session shows whether your message is
+waiting, being worked on, or answered.
+.IP
+Editing: \fBShift\-Enter\fR, \fBAlt\-Enter\fR or \fB\\\fR then Enter add a line break; arrows,
+Home/End, \fBctrl\-a\fR/\fBctrl\-e\fR and Option-arrows move; \fB↑\fR/\fB↓\fR move between lines,
+then through what you sent; Option-Backspace or \fBctrl\-w\fR deletes a word; \fBctrl\-u\fR and
+\fBctrl\-k\fR delete to the start and end of the line; \fBctrl\-z\fR undoes; \fBTab\fR completes
+commands, tab numbers and mentions; \fBctrl\-r\fR searches sent messages; \fBctrl\-g\fR opens
+\fB$EDITOR\fR.
+While going through what you sent, Esc returns to your draft; scrolled back, Esc returns to the
+newest messages; otherwise Esc leaves. \fBCtrl\-Enter\fR also adds a line break; \fBctrl\-d\fR deletes forward, and on an empty
+line leaves the room. \fB/rm\fR is short for \fB/remove\fR. \fBctrl\-t\fR pins the room as a tab
+(and, in the tab, closes it).
+.TP
+.B ptln chat add \fItab\fR... \fR·\fB remove \fItab\fR... \fR·\fB who
+Manage members without opening the room.
+.TP
+.B ptln chat send "\fItext\fR" \fR·\fB read \fR·\fB listen
+What sessions run: post a reply; print waiting messages; wait for a message, print it and exit.
+.SS Delivery
+A Claude session that is working receives waiting messages from its Stop hook when its turn ends.
+An idle Claude session keeps \fBptln chat listen\fR running as a background task; it exits when a
+message arrives, and Claude Code then gives the session a turn. Sessions reply with
+\fBptln chat send\fR.
+.PP
+A session with nothing listening (Codex, or a session started before its hooks were installed) is
+sent one line pointing it at \fBptln chat read\fR. The room types that line only when the pane is
+not shown on an attached terminal, the session is not working, and its input box is empty; it
+then checks that the line was submitted. Otherwise the message waits.
+.PP
+After 16 consecutive messages from sessions, delivery to sessions stops until you post.
+.SH LOOPS
+Tell a Claude, Codex or Gemini session running in partyline "use a partyline loop for this".
+Its prompt hook or managed repository memory block points to
+.B ptln loop guide
+for the calling engine's workflow: briefs, checks, approval and review results. A Codex or Gemini
+session with neither a trusted hook nor a managed memory block gets no pointer.
+.PP
+A single run (\fBptln loop start\fR) is built by the session. A batch (\fBptln loop batch start\fR)
+is two or more ordered steps, built by contractors partyline starts; partyline commits each step
+that passes in the batch's checkout and never pushes. Gemini can start batches, not single runs.
+Each round runs the brief's checks on the work, then, when no check newly fails, the reviewers
+review it.
+.SS Decisions
+By default loops decide for themselves and nothing waits for you. A brief or batch waiting for
+approval is approved. A disputed finding is ruled on by a model that did not build the
+work (the arbiter, else reviewer 1); its ruling stands, and with no valid answer the finding
+stands. With a Jev key saved in the loop settings, the brief (up to 6000 characters), the finding
+and the dispute are sent to Jev (api.typesafe.ai) and its estimate goes into that model's prompt;
+without a key, or when Jev fails, the dispute goes on without it.
+.PP
+With Decisions set to \fBask me\fR in the loop settings (\fBctrl\-\\\fR then \fB,\fR), you approve
+briefs and rule on disputes in the approval popup (\fBctrl\-\\\fR then \fBa\fR). The session must
+never approve.
+.PP
+Before the first loop, choose the builder and reviewers (engine, model and effort) in the loop
+settings. A loop started before then is saved and paused, the settings open on your screen, and
+it carries on once they are chosen.
+.SS Configuration
+\fBptln loop start\fR and \fBptln loop batch start\fR accept \fB\-\-config <file>\fR. The JSON
+contains \fBreviewers\fR, an array of slots, each an ordered array of
+\fIengine\fR:\fImodel\fR[:\fIeffort\fR] strings (engine claude or codex); \fBfailover\fR (default
+true); and, for a batch, \fBbuilder\fR, one such string or a list tried in order (default: the
+engine that started the batch, else claude). The batch document and approval cover this config;
+the popup shows the order and failover setting. Without \fB\-\-config\fR,
+\fB\-\-review claude,codex\fR names one reviewer per slot; with neither, the run or batch copies the
+loop settings into its config. Known usage, rate and capacity limits are recorded per model in
+\fI~/.partyline/limits.json\fR; a limited model is skipped until its reset (12 hours if unknown).
+A slot tries its next model; if every slot is limited, the review waits until the earliest reset.
+With failover false, a limit fails that review. \fBptln loop batch status\fR lists the model used
+for each step and review round.
+.SS Commands for you
+.TP
+.B ptln loop tab \fR[\-\-contractor \fIid\fR]
+The Loops board full-screen (the popup is \fBctrl\-\\\fR then \fBl\fR); with \fB\-\-contractor\fR, its
+Contractors tab with that contractor selected.
+.TP
+.B ptln loop status \fR[\fIid\fR]
+Print the state of every loop, or of one.
+.TP
+.B ptln loop resume \fIid
+Run a paused review again. A review paused by a usage limit resumes by itself.
+.TP
+.B ptln loop delete \fIid
+Stop a loop and remove it for good, so it cannot be resumed; a batch step deletes its whole batch.
+\fBd\fR twice on its card does the same.
+.TP
+.B ptln loop review \fR[\-\-by claude,codex[:\fImodel\fR]] [\-\-base \fIref\fR]
+A cross-model review of the working tree against \fIref\fR (default: where the branch left main),
+with no run. Exit 0 approve, 1 a P1 finding, 2 a reviewer failed.
+.SS Loop inbox
+.B ptln loop inbox <id>
+prints the run state and waiting messages, then exits. Claude uses loop listen in the background; Codex receives a guarded idle wake; Gemini batch results arrive with its next prompt.
+.SH MOBILE REMOTE
+.TP
+.B ptln relay setup
+Guided setup: join a nearby private gateway after comparing one code on each computer,
+use a one-use invite, configure this computer as a private gateway, connect an existing
+server, or deploy to Cloudflare. Reviews background-service changes before installing.
+Tailscale mode requires Tailscale connected on the gateway and phone, and configures
+private HTTPS forwarding. Existing-proxy mode requires a reachable trusted HTTPS origin
+and X-Forwarded-For. No existing relay settings are replaced. Press s in relay settings to open gateway setup.
+.TP
+.B ptln relay discover
+Discover private gateways on local multicast networks. Names and addresses are unverified;
+discovery grants no access. Use an invite when network isolation blocks discovery.
+.TP
+.B ptln relay approve
+On the private gateway owner's computer, compare a joining computer's code and approve
+or decline it. Codes appear once per screen. This grants relay membership, not phone access.
+.TP
+.B ptln relay service start|stop|restart|status
+Manage the private gateway user service: start installs it, stop disables and removes it,
+restart restarts it, and status inspects it. macOS uses a LaunchAgent; Linux uses a systemd
+user unit. Linux servers need administrator-enabled user lingering for operation after
+logout and at boot. Sleeping the gateway interrupts its routes. No automatic failover.
+.TP
+.B ptln relay serve [--init --origin https://host] [--relay-only] [--data <dir>] [--listen <address>]
+Run the relay from the Go binary, with a private SQLite registry and embedded browser app.
+No Node.js is needed on the relay host. The default listener is 127.0.0.1:8787 behind
+a trusted HTTPS reverse proxy or VPN HTTPS service. Plain HTTP cannot listen on the LAN.
+Use --tls-cert <file> and --tls-key <file> for HTTPS, or --acme with --listen :443 for
+Let's Encrypt certificates (accepts its terms; public ports 80 and 443 must reach this host).
+On Linux, binding these privileged ports needs root or CAP_NET_BIND_SERVICE; a reverse
+proxy on HTTPS with the unprivileged loopback listener avoids granting that privilege to the relay.
+--trusted-proxy <cidrs|none> selects comma-separated proxy CIDRs (default loopback).
+Only a trusted immediate proxy's rightmost X-Forwarded-For hop supplies the client IP.
+Configure the proxy to overwrite or append the real client address.
+--init creates server configuration and this computer's client registration, and refuses
+existing client settings. Add --relay-only during initialization to host a gateway
+while preserving this computer's current relay connection. Its separate owner credential
+is stored privately in the server data directory. Press g in relay settings to manage it.
+Data defaults to ~/.partyline/remote/server. Without --init,
+restart the saved server configuration. This foreground command stops when closed;
+use a service manager on an always-on host. The private gateway and phone still need
+a reachable trusted HTTPS origin; dynamic DNS alone cannot bypass carrier-grade NAT.
+.TP
+.B ptln relay deploy
+Deploy the embedded Cloudflare Worker and SQLite Durable Object in your account.
+Uses your account's workers.dev address. Reads CLOUDFLARE_API_TOKEN, a saved token,
+or prompts without echo. A successful prompted deploy offers to save the token in
+~/.partyline/remote/cloudflare-token (0600); the Relay screen also saves or forgets it.
+Requires Node.js 22 or newer and npm.
+Reports saved Wrangler credentials. Records URL, host as RP ID and machine id in
+~/.partyline/remote/relay.json (0600); the machine token is in relay-token (0600).
+.TP
+.B ptln relay invite
+Print a one-use invite valid for ten minutes. Requires a registered machine.
+.TP
+.B ptln relay join <string>
+Redeem an invite and register this machine; refuses existing local configuration.
+.TP
+.B ptln relay status
+Show URL, RP ID and whether this machine's watcher is connected. Unknown connectivity
+is an error. The watcher connects outward while the Partyline tmux server is running.
+
+.TP
+.B ptln relay forget-token
+Delete the saved Cloudflare API token. This does not revoke the token at Cloudflare.
+
+.SS Native app and browser client
+The native iOS/Android app has Sessions, Loops, Chat and Computers. iOS is currently
+a TestFlight beta for invited testers; Android development builds use mobile/README.md.
+The browser client (PWA) is served at your relay HTTPS URL and can be added to the home screen.
+Native updates come through app distribution; PWA updates require updating the gateway
+binary and restarting it, or redeploying the Cloudflare Worker. Both clients pair
+separately with each computer and use encrypted session and chat channels.
+
+.SS Mobile pairing
+.TP
+.B ptln remote pair
+Opens a private tmux popup with a one-use QR link renewed every 60 seconds.
+Scan in the native app, or open/paste the link in the browser client. The separate
+one-use device invite admits only the pairing route; the Noise PSK never goes to
+the relay. Compare the four-digit phone code and fingerprint, then approve on the
+computer. Native pairing does not require a passkey. Gateway membership uses a
+separate six-digit comparison and never grants phone pairing.
+No pairing is saved and no device token is issued before approval. Keep the popup open.
+.TP
+.B ptln remote phones
+List paired phone ids, names, fingerprints, pairing times and last seen. Pairings are saved
+in ~/.partyline/remote/phones.json and changes in events.jsonl, both mode 0600.
+.TP
+.B ptln remote revoke <id>
+Remove a phone and revoke its relay device token. The approval popup also lists phones;
+select a phone and confirm its revocation there. The running channel drops phones
+removed from the local authorization file. If the relay cannot be told, the CLI
+reports the pending revoke and the watcher retries it.
+
+.SS Phone input, uploads and layout
+Send submits a draft; insert sends terminal text without Return. Reconnect never
+replays input automatically. Inspect the session before retrying unknown delivery:
+the original command may already have run. Session status includes sessions outside Chat.
+.PP
+Native Attach chooses a photo or file, at most 20 MiB per file and 200 MiB cached
+per phone. The computer chooses a filename, checks size and SHA-256, and stores it
+privately without executable permission. On macOS files land in
+~/Library/Caches/sh.partyline/uploads/<phone>/; on Linux in
+$XDG_CACHE_HOME/partyline/uploads/<phone>/, or ~/.cache/partyline/uploads/<phone>/.
+Oldest finished files are evicted when space is needed. A confirmed upload adds
+the quoted path to the latest draft; it never presses Send.
+.PP
+In native beta build 7, Readable and Fit width control text display. Phone layout
+is a separate opt-in: it resizes the same tmux window on the computer. Only
+single-pane windows are supported, with one phone holding a window at a time.
+Desktop or leaving the session requests release. Renewals run every 10 seconds;
+a lost renewal expires after a 30-second lease. Restoration after a receiver crash
+is retried when the receiver runs again. Existing output keeps its old wrapping.
+The native Loops board supports multi-select stage filters, All and none.
+
+.SS Mobile troubleshooting and local files
+Connection failures are written to ~/.partyline/remote/session.log, with UTC
+timestamps and phone route identifiers; only the latest 200 lines are retained.
+Use relay status on the computer and relay service status on the gateway to check
+the route. A disconnected phone cannot diagnose whether the host, VPN or gateway failed.
+Keep Partyline's tmux server running on the target computer and the gateway awake.
+If uploads or Phone layout are unavailable, check both computer and phone versions.
+.SH ENGINES
+Facts reach every engine through \fBAGENTS.md\fR, \fBCLAUDE.md\fR or \fBGEMINI.md\fR at session
+start, with no hook. Refreshing during a session needs a hook:
+.TP
+.B Claude
+\fBUserPromptSubmit\fR and \fBStop\fR hooks, passed per session at launch. No configuration file
+and no trust prompt.
+.TP
+.B Codex
+\fBUserPromptSubmit\fR. Trust is granted once in the Codex TUI. An untrusted hook is disabled
+without a warning, so its state is reported as unknown.
+.TP
+.B Gemini
+\fBBeforeAgent\fR. Needs the workspace trusted, or \fB\-\-skip\-trust\fR.
+.TP
+.B Antigravity
+\fBPreInvocation\fR. Needs the directory in \fBtrustedWorkspaces\fR.
+.SH FILES
+.TP
+.B <repo>/memory/*.md
+The repository's facts.
+.TP
+.B <repo>/AGENTS.md\fR, \fBCLAUDE.md\fR, \fBGEMINI.md
+The generated block between \fB<!\-\- partyline:memory BEGIN\fR and \fBEND \-\->\fR markers.
+.TP
+.B ~/.partyline/
+Session index, saved workspace (\fBllms\-workspace.json\fR), generated tmux configuration,
+delete trash, the chat room (\fBchat/\fR), per-repository markers for the memory setup offer, the
+chosen palette (\fBllms\-theme\fR) and background setting (\fBtheme\-background\fR), loop runs
+and batches (\fBloops/\fR), contractor records (\fBcontractors/\fR), loop settings
+(\fBsettings.json\fR), model usage limits (\fBlimits.json\fR), the Jev key (\fBjev\-key\fR,
+mode 0600), the latest release seen (\fBversion\-check.json\fR), the update popup's choices
+(\fBupdates.json\fR) and automatic updates' output (\fBupdate.log\fR).
+.SH COMPLETE KEY REFERENCE
+M-1 through M-9 (Alt-1 through Alt-9) select a window directly.
+PgUp / PgDn page the launcher list.
+
+.SS tmux
+
+.TP
+.B (none)
+prefix None: no tmux prefix
+
+.TP
+.B C-\e
+run-shell 'ptln tmux --menu', the menu popup
+
+.TP
+.B M-1 … M-9
+select-window -t N
+
+.TP
+.B WheelUpPane
+full-screen apps keep the wheel; otherwise copy-mode -e; send -M
+
+.TP
+.B MouseDragEnd1Pane
+copy-pipe-no-clear <clipboard>, then tmux --copied (fallback copy-selection-no-clear)
+
+.TP
+.B Enter
+copy and toast, when a clipboard tool exists
+
+.TP
+.B MouseDown1Status
+A click on a contractor chip opens Loops on its Contractors tab with that contractor selected; anywhere else on the bar selects the window.
+.TP
+.B MouseDown1Pane
+select-pane; send -X clear-selection
+
+.TP
+.B MouseUp1Pane
+send -X cancel: a click returns to live
+
+.TP
+.B printable ASCII 33-126 except \e
+leave copy mode, then type the character
+
+.TP
+.B Space, BSpace
+leave copy mode, then type a space / backspace
+
+.SS ctrl-\e menu popup
+/ starts a Sessions filter, also from Commands. Type to match label or engine
+ignoring case; backspace edits. Enter ends editing and keeps matching rows;
+Enter again keeps the selected session. Esc clears the filter; another Esc
+goes back. While editing, printable keys enter text. Afterwards hotkeys
+act on all rows, including hidden windows.
+.PP
+Sessions opens with the current session selected. With no sessions, Commands opens
+and Sessions says "no sessions yet". tab and shift+tab switch Sessions / Commands.
+Commands groups keys under start and open, the session's agent, panes, and leave,
+and shows "for #<n> <name>" for the session selected on Sessions.
+Arrows preview on Sessions and move without preview on Commands. Enter keeps the
+session on Sessions and runs the command on Commands. Hotkeys work in either tab.
+
+
+.TP
+.B ↑ ← / ↓ →
+move within the tab; Sessions previews, Commands does not
+
+.TP
+.B ⏎
+pick
+
+.TP
+.B esc (alone), ctrl-c, ctrl-\e
+back to where you started
+
+.TP
+.B 1-9
+focus that window
+
+.TP
+.B n
+New/Run popup
+
+.TP
+.B N
+asks engine and permissions
+
+.TP
+.B t
+shell window
+
+.TP
+.B o
+launcher popup
+
+.TP
+.B a
+approval popup for loops waiting on you
+
+.TP
+.B l
+open the Loops popup
+
+.TP
+.B c
+the chat room as a popup
+
+.TP
+.B w
+worktree popup
+
+.TP
+.B g
+keep-going popup
+
+.TP
+.B [
+copy mode on the highlighted pane
+
+.TP
+.B |, +
+merge the highlighted session in beside this one
+
+.TP
+.B -
+break it out to its own window
+
+.TP
+.B \e
+split with a shell pane
+
+.TP
+.B x (twice)
+close the highlighted pane
+
+.TP
+.B q
+detach
+
+.TP
+.B Q (twice)
+save, then quit everything
+
+.TP
+.B any other key
+cancels an armed confirm
+
+.SS Per-session popups and modals, tmux mode
+
+.TP
+.B 1 / 2
+New/Run: AI session / blank terminal
+
+.TP
+.B f / l / r
+Worktree: fork / list / remove
+
+.TP
+.B typed line; q or empty cancels
+text fields and pickers
+
+.TP
+.B y / n / ⏎ / esc / q
+yes / no questions: yes / no / default / cancel
+
+.TP
+.B esc, ctrl-c, ctrl-\e cancel; ⏎; letters folded to lower case
+one-key menus
+
+.TP
+.B digits; N ⏎ for long lists; ↑↓ scroll; extra letters; esc / q / ctrl-c / ctrl-\e / ⏎ with nothing typed
+pickers
+
+.TP
+.B ⏎, backspace, ctrl-u; esc / ctrl-c / ctrl-\e; a lone q cancels on ⏎
+text fields
+
+.TP
+.B y, n, ⏎, esc / q
+yes / no questions
+
+.TP
+.B any key
+messages: dismiss
+
+.TP
+.B 1 / d / r / e
+Recover: clone / relocate / clone a URL / recreate empty
+
+.TP
+.B 1-9 / p / q
+Empty state: adopt a home / type a path / not now
+
+.TP
+.B esc / q / ctrl-c / ctrl-\e
+wait line: cancel
+
+.SS Launcher popup
+
+.TP
+.B ↑ ↓, j k
+move; ↑↓ scroll the detail pane when focused (j/k still move)
+
+.TP
+.B PgUp / PgDn
+page
+
+.TP
+.B → / ←
+expand / collapse a project; focus / unfocus detail
+
+.TP
+.B g / G
+top / bottom
+
+.TP
+.B /, then type, backspace, ⏎, esc
+search
+
+.TP
+.B r, then type, ⏎, esc
+rename
+
+.TP
+.B a
+show all
+
+.TP
+.B s
+cycle sort
+
+.TP
+.B R
+refresh
+
+.TP
+.B space
+mark several
+
+.TP
+.B p
+pin
+
+.TP
+.B x, then y / ⏎
+delete (any other key cancels)
+
+.TP
+.B o
+new terminal tab
+
+.TP
+.B tab, l, h
+focus / unfocus detail
+
+.TP
+.B d
+diff in $PAGER
+
+.TP
+.B t
+cycle theme
+
+.TP
+.B n / N / ctrl-n
+New/Run menu / quick new / quick new with bypass
+
+.TP
+.B |
+guided split
+
+.TP
+.B D
+docs in the browser
+
+.TP
+.B ?
+help overlay; any key closes
+
+.TP
+.B q, ctrl-c
+quit (closes popup)
+
+.TP
+.B ⏎
+header toggles; opens the permission picker, or recovers a gone directory
+
+.TP
+.B ↑↓←→, h l, ⏎, q, esc
+permission picker; Enter twice confirms a dangerous mode; custom flags field
+
+.TP
+.B esc
+back to the session you came from
+
+.SS Welcome
+
+.TP
+.B ↑ ↓, j k
+move
+
+.TP
+.B ⏎
+open the selected door
+
+.TP
+.B n / /
+new session / find a session
+
+.TP
+.B esc / q / ctrl-c
+switchboard when there are sessions, else quit
+
+.TP
+.B ctrl-\e
+ignored
+
+.SS Boot splash
+
+.TP
+.B any key, including ⏎ / esc / q / ctrl-c / ctrl-\e
+ignored; boot completion closes the screen
+
+.SS Chat
+
+.TP
+.B ⏎
+send; after a \e, a new line instead
+
+.TP
+.B Shift-⏎, Alt-⏎, Ctrl-⏎
+new line
+
+.TP
+.B ←/→, ctrl-b / ctrl-f
+move a character
+
+.TP
+.B Home/End, ctrl-a / ctrl-e
+line start / end
+
+.TP
+.B Option-←/→, ESC b / ESC f, Ctrl-←/→
+move a word
+
+.TP
+.B ↑ / ↓
+move between lines, then history
+
+.TP
+.B Backspace; Delete
+delete
+
+.TP
+.B ctrl-d
+delete forward; on an empty line, leave
+
+.TP
+.B ctrl-w, Option-Backspace, modified Backspace
+delete a word back
+
+.TP
+.B Alt-d
+delete a word forward
+
+.TP
+.B ctrl-u / ctrl-k
+kill to start / end
+
+.TP
+.B ctrl-z, ctrl-_
+undo
+
+.TP
+.B Tab
+complete
+
+.TP
+.B Wheel up/down; PgUp / PgDn
+Scroll chat history (wheel: three lines per step).
+.TP
+.B Left drag
+Select cells and copy plain text on release. Hold Shift (Option in iTerm2)
+for the terminal's own selection.
+.TP
+.B Esc while scrolled back
+back to the newest messages (before any other Esc)
+
+.TP
+.B ctrl-t
+pin the popup as a tab; in the tab, close it
+
+.TP
+.B ctrl-r; again for older; esc or ctrl-c cancels
+history search
+
+.TP
+.B ctrl-g
+$VISUAL / $EDITOR, falling back to vi
+
+.TP
+.B Esc Esc within 1 s
+clear the input
+
+.TP
+.B Esc while browsing history
+back to the draft
+
+.TP
+.B ctrl-l
+clear the screen
+
+.TP
+.B ctrl-c
+leave
+
+.TP
+.B bracketed paste
+one edit
+
+.TP
+.B /add /remove (/rm) /who /stop /go /clear /help
+room commands
+
+.SS Loops board
+
+Board is the default tab. Tab and shift-Tab switch to Contractors (N), counting
+running and unseen finished agents. Use ↑↓/jk to select, ⏎ for full output,
+esc to return or close, and q to close. Opening finished output marks it seen.
+Running builders, reviewers and arbiters precede finished agents: unseen first,
+then seen within 24 hours, newest first. At 100 columns or wider live output
+appears beside the list; PgUp/PgDn scroll it and G resumes following the end.
+Below 100 columns use ⏎ for output.
+
+
+Loops is a popup; \fBptln loop tab\fR runs the same board full-screen. Add \fB--contractor <id>\fR to open its Contractors tab with that contractor selected; an unknown or malformed id selects the first contractor.
+Five columns show needs you, then planned, in progress, in review and done.
+Below 110 columns, three columns are visible.
+With bare \fBptln\fR, a new server starts the saved workspace, or a shell in the
+current directory if none exists, then opens the launcher popup. Existing servers
+keep their focus. Obsolete permanent Loops and launcher windows are closed on start or attach.
+
+.TP
+.B ← →, h l
+move between columns
+
+.TP
+.B s
+open the selected run's approval popup to confirm stopping
+
+.TP
+.B ↑ ↓, j k
+move
+
+.TP
+.B ⏎
+show rounds and findings; on a building or reviewing card, select its contractor on the Contractors tab
+
+.TP
+.B a
+open approvals for a row that needs you
+
+.TP
+.B esc
+back from details, otherwise close
+
+.TP
+.B q, ctrl-c
+close (q in details returns to the board)
+
+.TP
+.B PgUp / PgDn
+scroll details
+
+.SS Approval popup
+
+.TP
+.B ↑ ↓, j k
+move between runs or scroll the full brief
+
+.TP
+.B ⏎
+open the selected run
+
+.TP
+.B a / r
+approve / reject with a note; type the displayed confirmation code
+
+.TP
+.B f / d
+fix / dismiss a dispute, after confirmation
+
+.TP
+.B v
+full brief
+
+.TP
+.B s
+stop the run, after confirmation
+
+.TP
+.B PgUp / PgDn, space
+scroll the summary or brief
+
+.TP
+.B esc / q / ctrl-c
+back / close
+
+.TP
+.B typed note, ⏎, backspace
+edit and submit a rejection note
+.SH ENVIRONMENT
+.TP
+.B PARTYLINE_MEMORY_REFRESH=off
+Do not show new facts during a session.
+.TP
+.B PARTYLINE_MEMORY_CAPTURE=off
+Do not record facts from a session's work.
+.TP
+.B PARTYLINE_ENGINE
+The engine \fBN\fR starts: claude, codex, gemini or antigravity. Default claude.
+.TP
+.B PARTYLINE_TMUX_SOCKET
+The tmux socket name. Default \fBpartyline\fR.
+.TP
+.B PARTYLINE_NO_UPDATE_CHECK=1 \fRor\fB NO_UPDATE_NOTIFIER=1
+Do not check for a newer version.
+.SH EXAMPLES
+Open the session manager:
+.PP
+.nf
+    ptln
+.fi
+.PP
+Start Claude in a new worktree:
+.PP
+.nf
+    ptln new claude \-\-worktree spike\-auth
+.fi
+.PP
+Set up memory in a repository, then review and commit it:
+.PP
+.nf
+    ptln memory build             # what it would write
+    ptln memory build \-\-apply
+    git status memory/ AGENTS.md
+.fi
+.PP
+Record a fact, then correct it:
+.PP
+.nf
+    ptln memory add gotcha "The importer rejects CSV files with a byte-order mark."
+    ptln memory edit 20261017\-2013 "The importer strips a byte-order mark since v2.4."
+.fi
+.PP
+Open the chat with the sessions in tabs 10 and 11:
+.PP
+.nf
+    ptln chat
+    /add 10 11
+.fi
+.SH SEE ALSO
+.BR git\-worktree (1),
+.BR tmux (1)
+.PP
+https://partyline.sh/docs
+.SH REPORTING BUGS
+https://github.com/partyline\-sh/cli/issues
+.SH COPYRIGHT
+MIT licence. See the LICENSE file in the source repository.
