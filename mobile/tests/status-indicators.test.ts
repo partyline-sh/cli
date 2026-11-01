@@ -1,0 +1,31 @@
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, expect, it, vi } from 'vitest';
+import { StatePill } from '../src/ui/parts';
+import { ControlDelivery } from '../src/ui/ControlDelivery';
+vi.mock('react-native', () => ({ Animated: {}, View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: (v: unknown) => v }, Platform: { select: () => 'monospace' }, Alert: {} }));
+vi.mock('../src/ui/motion', () => ({ useSignalMotion: vi.fn() }));
+vi.mock('../src/ui/Signal', () => ({ Signal: 'Signal' }));
+vi.mock('../src/ui/ConnectionSignal', () => ({ ConnectionSignal: 'ConnectionSignal' }));
+vi.mock('../src/runtime', () => ({ usePartyline: () => ({}) }));
+let tree: ReactTestRenderer;
+afterEach(async () => { await act(async () => tree?.unmount()); });
+it('replaces a stale working session with a still Offline badge', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  await act(async () => { tree = create(createElement(StatePill, { state: 'working', connected: false })); });
+  expect(tree.root.findByType('Signal' as never).props.mode).toBe('offline');
+  expect(JSON.stringify(tree.toJSON())).toContain('Offline');
+  expect(JSON.stringify(tree.toJSON())).not.toContain('Working');
+});
+it('moves delivery packets only while waiting and never marks unknown delivery confirmed', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const delivery = { id: 'a', computerId: 'mac', pane: '%1', status: 'waiting' as const };
+  await act(async () => { tree = create(createElement(ControlDelivery, { delivery })); });
+  expect(tree.root.findByType('ConnectionSignal' as never).props.state).toBe('connecting');
+  await act(async () => { tree.update(createElement(ControlDelivery, { delivery: { ...delivery, status: 'confirmed' } })); });
+  expect(tree.root.findByType('Signal' as never).props.mode).toBe('confirmed');
+  await act(async () => { tree.update(createElement(ControlDelivery, { delivery: { ...delivery, status: 'unknown' } })); });
+  expect(tree.root.findAllByType('ConnectionSignal' as never)).toHaveLength(0);
+  expect(tree.root.findByType('Signal' as never).props.mode).toBe('blocked');
+  expect(JSON.stringify(tree.toJSON())).toContain('Delivery unknown.');
+});
