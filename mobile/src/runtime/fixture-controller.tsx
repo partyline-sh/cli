@@ -1,0 +1,51 @@
+import {openPreviewStream} from '../preview/stream-terminal';
+import { promptBaseline } from './agent-session';
+import { openPreviewTerminal } from '../preview/live-terminal';
+import { useCallback, useState } from 'react';
+import { fixtureState } from './fixtures';
+import { storePreview } from '../preview/config';
+import { storeState } from '../preview/store-state';
+import { paneKey, inputDraftKey, type Delivery, type PartylineController } from './types';
+
+/** Explicit demo controller. It never creates sockets, stores keys, or authorizes actions. */
+export function useFixturePartyline(): PartylineController {
+  const [state, setState] = useState(storePreview ? storeState : fixtureState);
+  const openTerminalStream = useCallback((_computer:string,_session:string|undefined,_columns:number,_rows:number,receive:Parameters<typeof openPreviewStream>[0])=>openPreviewStream(receive),[]);
+  const openLiveTerminal = useCallback((_computer: string, _pane: string, receive: Parameters<typeof openPreviewTerminal>[0]) => openPreviewTerminal(receive), []);
+  const deliver = useCallback(async (computerId: string, pane: string, text?: string, submitted = false, previousMatches?: number, target?: string): Promise<Delivery> => {
+    const id = `fixture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const result: Delivery = { id, computerId, pane, target, status: 'confirmed', reason: 'Fixture only; nothing sent', ...(submitted && text ? { prompt: { text, previousMatches } } : {}) };
+    setState(previous => ({ ...previous, drafts: Object.fromEntries(Object.entries(previous.drafts).filter(([key, value]) => key !== inputDraftKey(computerId, pane, target) || value !== text)), deliveries: [...previous.deliveries.slice(-49), result],
+      chat: pane === 'chat' && text ? [...previous.chat, { id, computerId, name: 'you', own: true, text, at: new Date().toISOString() }] : previous.chat,
+    }));
+    return result;
+  }, []);
+  return {
+    ...state,
+    openTerminalStream: storePreview ? openTerminalStream : undefined,
+    openLiveTerminal: storePreview ? openLiveTerminal : undefined,
+    selectTab: tab => setState(s => ({ ...s, tab, selected: undefined })),
+    selectSession: selected => setState(s => ({ ...s, selected })),
+    selectView: sessionView => setState(s => ({ ...s, sessionView })),
+    setDraft: (computerId, pane, text, target) => setState(s => ({ ...s, drafts: { ...s.drafts, [inputDraftKey(computerId, pane, target)]: text } })),
+    startScan: () => setState(s => ({ ...s, pairing: { status: 'scanning' } })),
+    pair: async () => setState(s => ({ ...s, pairing: { status: 'error', message: 'Fixture mode cannot pair. Use the live runtime to pair a computer.' } })),
+    cancelPair: () => setState(s => ({ ...s, pairing: { status: 'idle' } })),
+    forgetComputer: async computerId => setState(s => ({ ...s, computers: s.computers.filter(c => c.id !== computerId), sessions: s.sessions.filter(c => c.computerId !== computerId), selected: s.selected?.computerId === computerId ? undefined : s.selected })),
+    reconnect: computerId => setState(s => ({ ...s, computers: s.computers.map(c => c.id === computerId ? { ...c, connection: 'connected' } : c) })),
+    sendText: (computerId, pane, text, target) => deliver(computerId, pane, text, true, promptBaseline(state.panes[paneKey(computerId, pane)], text, state.deliveries.filter(d => d.computerId === computerId && d.pane === pane && d.target === target)), target),
+    paste: (computerId, pane, text, target) => deliver(computerId, pane, text, false, undefined, target),
+    retryEnter: async () => { throw new Error('Example data cannot submit to a terminal'); },
+    sendKey: (computerId, pane, _key, target) => deliver(computerId, pane, undefined, false, undefined, target),
+    sendChat: (computerId, text) => deliver(computerId, 'chat', text),
+    openShell: async () => { throw new Error('Connect a computer to open a terminal.'); },
+    readLoop: async () => { throw new Error('Connect a computer for its full loop details.'); },
+    prepareLoopAction: async () => { throw new Error('Demo mode cannot prepare decisions.'); },
+    confirmLoopAction: async () => { throw new Error('Demo mode cannot decide loops.'); },
+    resizeTerminal: async () => { throw new Error('Demo mode does not resize a real terminal.'); },
+    uploadAttachment: async () => { throw new Error('Connect a computer to upload files. Demo mode never transfers files.'); },
+    retryDelivery: async () => { throw new Error('Fixture mode has no uncertain deliveries'); },
+    acknowledgeDelivery: id => setState(s => ({ ...s, deliveries: s.deliveries.filter(d => d.id !== id) })),
+    answer: undefined,
+  };
+}
