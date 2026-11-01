@@ -1,0 +1,24 @@
+# Build context for the RELAY image (docker build -f relay/Dockerfile . — context is the repo root).
+# The web image has its own web/.dockerignore; Docker only reads the one at the context root.
+#
+# The env exclusions are the load-bearing ones. `relay/Dockerfile` does `COPY . .`, so anything in
+# the working tree lands in the build stage — and while the published image is multi-stage and
+# carries only the compiled binary, "the secret is only in a discarded stage" is one careless
+# `COPY --from` away from being false, on an image that is world-readable. Excluding them at the
+# context boundary means they are never in the build at all, which is the only version of this that
+# cannot be undone by a later edit.
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Weight, not secrets — a smaller context is a faster build on a shared runner.
+node_modules
+web/node_modules
+web/.next
+dist/
+*.log
+.partyline/
+# The compiled CLI, if someone built it locally before the image build.
+/partyline
