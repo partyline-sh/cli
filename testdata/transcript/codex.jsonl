@@ -1,0 +1,7 @@
+{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Please run checks"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "First line\nsecond line"}, {"type": "output_text", "text": "Another block"}]}}
+{"type": "response_item", "payload": {"type": "function_call", "name": "exec_command", "call_id": "ok", "arguments": "{\"cmd\": \"go test ./...\"}"}}
+{"type": "response_item", "payload": {"type": "function_call", "name": "exec_command", "call_id": "bad", "arguments": "{\"cmd\": \"false\"}"}}
+{"type": "response_item", "payload": {"type": "function_call", "name": "exec_command", "call_id": "pending", "arguments": "{\"cmd\": \"sleep 20\"}"}}
+{"type": "response_item", "payload": {"type": "function_call_output", "call_id": "ok", "output": "Process exited with code 0\nOutput: done"}}
+{"type": "response_item", "payload": {"type": "function_call_output", "call_id": "bad", "output": "Process exited with code 1\nOutput: done"}}
