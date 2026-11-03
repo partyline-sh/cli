@@ -1,0 +1,28 @@
+appId: sh.partyline.mobile
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: ".*LATEST OUTPUT CHECK.*"
+    timeout: 45000
+- assertNotVisible: ".*CAPTURE ROW 1:.*"
+- takeScreenshot: session-fresh-latest
+- tapOn: "Refresh session output"
+- assertVisible: ".*Refreshing session.*"
+- extendedWaitUntil:
+    visible: ".*Updated .*"
+    timeout: 20000
+- takeScreenshot: session-refresh-completed
+- swipe:
+    direction: DOWN
+    duration: 500
+- assertVisible: "Jump to latest terminal output"
+- takeScreenshot: session-reading-older
+- tapOn: "Jump to latest terminal output"
+- assertVisible: ".*LATEST OUTPUT CHECK.*"
+- takeScreenshot: session-jumped-latest
+- tapOn: "Text size"
+- assertVisible: ".*LATEST OUTPUT CHECK.*"
+- tapOn: "Message claude.*"
+- assertVisible: ".*LATEST OUTPUT CHECK.*"
+- takeScreenshot: session-latest-with-focused-composer
