@@ -1,0 +1,8 @@
+# Partyline crank dogfood — ROUND 2 (sharper specs).
+# Hypothesis (#76): exact file + exact approach + explicit acceptance criteria + a self-verify
+# command → cleaner, more-mergeable output with less review fixup. Both tasks are self-verifying
+# via `go test`, isolated (a new _test.go file each), and touch existing pure functions in crank.go.
+
+Add a table-driven Go test in a NEW file `firstwords_test.go` (package main) for the existing `firstWords(s string, n int) string` in crank.go — do NOT modify firstWords. Name the test `TestFirstWordsRound2` (avoid collisions). Cover exactly these cases: (a) empty string, n=4 → ""; (b) "one two", n=4 → "one two"; (c) "a b c d", n=4 → "a b c d"; (d) "a b c d e f", n=4 → "a b c d"; (e) "  lots   of   spaces here", n=2 → "lots of" (leading/duplicate spaces collapsed by strings.Fields). Assert each with a clear message. Acceptance: `go test . -run TestFirstWordsRound2` passes and `gofmt -l firstwords_test.go` prints nothing.
+
+Add a table-driven Go test in a NEW file `parsetasks_test.go` (package main) for the existing `parseTasks(path string) ([]string, error)` in crank.go — do NOT modify parseTasks. Name the test `TestParseTasksRound2`. Write a temp file with `t.TempDir()` containing: a leading `# comment` line, a blank line, "  task one  " (surrounding whitespace, must be trimmed to "task one"), a line that is only "#", and "deploy the # feature" (a # NOT at line start — must be kept whole, NOT treated as a comment). Assert the result is exactly ["task one", "deploy the # feature"] (2 tasks; comments/blank skipped; mid-line # preserved) and err is nil. Acceptance: `go test . -run TestParseTasksRound2` passes and `gofmt -l parsetasks_test.go` prints nothing.

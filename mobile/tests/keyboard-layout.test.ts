@@ -1,0 +1,24 @@
+import { TabBar } from '../src/ui/TabBar';
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, expect, it, vi } from 'vitest';
+const keyboard = vi.hoisted(() => ({ visible: false }));
+vi.mock('../src/ui/useKeyboardVisible', () => ({ useKeyboardVisible: () => keyboard.visible }));
+vi.mock('react-native', () => ({ Platform: { select: () => 'monospace' }, Keyboard: { dismiss: vi.fn() }, Pressable: 'Pressable', View: 'View', Text: 'Text', StyleSheet: { create: (s: unknown) => s } }));
+vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ bottom: 34 }) }));
+vi.mock('../src/runtime', () => ({ usePartyline: () => ({ sessions: [], selectTab: vi.fn() }) }));
+vi.mock('../src/ui/svg', () => ({ default: 'Svg', Path: 'Path', Rect: 'Rect' }));
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+let tree: ReactTestRenderer;
+afterEach(async () => { await act(async () => tree?.unmount()); keyboard.visible = false; });
+it('removes tab bar space while typing and restores navigation when the keyboard closes', async () => {
+ const props = { state: { index: 0, routes: [{ key: 'chat', name: 'chat' }] }, descriptors: { chat: { options: { title: 'Chat' } } }, navigateToTab: vi.fn() };
+ await act(async () => { tree = create(createElement(TabBar, props as never)); });
+ expect(JSON.stringify(tree.toJSON())).toContain('Chat');
+ keyboard.visible = true;
+ await act(async () => tree.update(createElement(TabBar, props as never)));
+ expect(tree.toJSON()).toBeNull();
+ keyboard.visible = false;
+ await act(async () => tree.update(createElement(TabBar, props as never)));
+ expect(JSON.stringify(tree.toJSON())).toContain('Chat');
+});
