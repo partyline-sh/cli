@@ -1,0 +1,6 @@
+☎  Remove a worktree
+
+the directory goes away; the branch survives
+delete the worktree directory? [y/N]
+
+y yes · n no · ⏎ default · q / esc cancel
