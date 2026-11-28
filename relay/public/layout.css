@@ -1,0 +1,490 @@
+/* One column, sized for a phone: a screen per step, a full-width primary action at the bottom
+   of each, and the safe areas left clear of the notch and the home indicator. */
+* {
+  box-sizing: border-box;
+}
+body {
+  font:
+    17px/1.45 system-ui,
+    -apple-system,
+    sans-serif;
+  background: var(--ground);
+  color: var(--text);
+  margin: 0 auto;
+  max-width: 60rem; /* a machine's terminal views need the width; the setup screens stay narrow */
+  min-height: 100svh;
+  padding: calc(env(safe-area-inset-top) + 1.5rem)
+    calc(env(safe-area-inset-right) + 1.25rem)
+    calc(env(safe-area-inset-bottom) + 1.5rem)
+    calc(env(safe-area-inset-left) + 1.25rem);
+  -webkit-text-size-adjust: 100%;
+}
+h1 {
+  font-size: 1.7rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0 0 0.75rem;
+}
+h2 {
+  font-size: 1.1rem;
+}
+.note {
+  color: var(--muted);
+  margin: 0 0 1.5rem;
+}
+kbd {
+  font:
+    0.9em ui-monospace,
+    monospace;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  padding: 0.05em 0.35em;
+  color: var(--text);
+}
+
+/* Which screen shows: app.ts sets body[data-view]; pairing.ts sets #pairing[data-step]. */
+.screen,
+.step {
+  display: none;
+}
+body[data-view="pair"] #pairing {
+  display: flex;
+  flex-direction: column;
+  max-width: 34rem;
+  margin: 0 auto;
+}
+body[data-view="pair"] #app {
+  display: none;
+}
+#pairing[data-step="scan"] [data-for="scan"],
+#pairing[data-step="name"] [data-for="name"],
+#pairing[data-step="wait"] [data-for="wait"],
+#pairing[data-step="done"] [data-for="done"] {
+  display: flex;
+  flex-direction: column;
+}
+#pairing[data-step="wait"] #pair-cancel,
+#pairing[data-step="done"] #pair-cancel,
+#pairing:not([data-step="done"]) #pair-done {
+  display: none;
+}
+
+button.link.lead {
+  color: var(--text);
+  font-weight: 600;
+}
+.paircode {
+  font:
+    600 3.5rem/1 ui-monospace,
+    monospace;
+  letter-spacing: 0.25em;
+  text-align: center;
+  margin: 1rem 0 0.5rem;
+}
+.paircode:empty {
+  display: none;
+}
+.steps {
+  margin: 0 0 1.5rem;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+button {
+  cursor: pointer;
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+button.primary {
+  width: 100%;
+  margin-top: 0.5rem;
+  background: var(--focus);
+  border-color: var(--focus);
+  color: #1b1a19;
+  font-weight: 600;
+  padding: 1rem;
+}
+button.primary:disabled {
+  opacity: 0.6;
+}
+button.link {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 0.75rem 0;
+  align-self: center;
+}
+label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0.35rem;
+}
+input,
+textarea {
+  width: 100%;
+}
+textarea {
+  height: 7rem;
+  font:
+    0.8rem ui-monospace,
+    monospace;
+}
+video {
+  width: 100%;
+  border-radius: 0.75rem;
+  margin-top: 1rem;
+}
+#paste {
+  display: flex;
+  flex-direction: column;
+}
+#paste[hidden] {
+  display: none;
+}
+#status {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  margin: 1rem 0 0;
+}
+#status:empty {
+  display: none;
+}
+
+/* App shell */
+[hidden] {
+  display: none !important;
+}
+body {
+  max-width: 60rem;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
+    env(safe-area-inset-left);
+}
+#pairing {
+  padding: 24px 20px;
+}
+#app {
+  height: calc(var(--app-height, 100dvh) - env(safe-area-inset-top));
+  position: relative;
+  top: var(--app-top, 0px);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.page-header {
+  padding: 20px 18px 12px;
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.page-header h1 {
+  font-size: 30px;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 14px 16px;
+}
+.computer-group {
+  margin: 14px 0 20px;
+  min-width: 0;
+}
+.group-title {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+  margin: 0 6px 4px;
+}
+.connection-status {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 6px 8px;
+  overflow-wrap: anywhere;
+}
+.session-list {
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.session-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+  border-radius: 0;
+  padding: 12px;
+}
+.session-row:last-child {
+  border-bottom: 0;
+}
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--focus);
+  color: var(--ground);
+  font:
+    700 14px ui-monospace,
+    monospace;
+}
+.avatar.codex {
+  background: var(--muted);
+}
+.row-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.row-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+.row-sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+.row-title,
+.row-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.state-waiting {
+  background: color-mix(in srgb, var(--focus) 20%, transparent);
+  color: var(--focus);
+}
+.state-working {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+}
+.state-idle {
+  background: var(--ground);
+  color: var(--muted);
+}
+.tabbar {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.tab {
+  position: relative;
+  border: 0;
+  border-radius: 8px;
+  padding: 4px 0;
+  background: none;
+  color: var(--muted);
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  font-size: 11px;
+  min-height: 48px;
+}
+.tab[aria-current] {
+  color: var(--focus);
+}
+.tab-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
+  line-height: 24px;
+}
+.badge {
+  position: absolute;
+  top: 0;
+  left: calc(50% + 8px);
+  background: var(--focus);
+  color: var(--ground);
+  font-size: 10px;
+  border-radius: 999px;
+  padding: 1px 5px;
+}
+.session-title {
+  flex: 1;
+  min-width: 0;
+}
+.session-title h1 {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.metadata {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.back {
+  color: var(--focus);
+  font-size: 30px;
+  border: 0;
+  background: none;
+  padding: 0 12px 0 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+.page-header > .connection-status {
+  flex-basis: 100%;
+}
+.terminal-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.terminal-controls button {
+  padding: 8px;
+  min-height: 44px;
+}
+.terminal-controls [aria-pressed="true"] {
+  border-color: var(--focus);
+  color: var(--focus);
+}
+.terminal-scroll {
+  max-height: 65svh;
+  overflow: auto;
+  padding: 8px;
+  background: var(--ground);
+}
+.terminal {
+  width: 100%;
+}
+.card,
+.message {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 12px;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+.card h3,
+.message h3 {
+  font-size: 15px;
+  margin: 4px 0;
+}
+.card p,
+.message p {
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+.message time {
+  font-size: 11px;
+  color: var(--muted);
+}
+.install-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 22px 22px 0 0;
+  background: var(--surface);
+  color: var(--text);
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+}
+.install-sheet::backdrop {
+  background: #0008;
+}
+.install-sheet h2 {
+  font-size: 22px;
+  margin-top: 0;
+}
+.install-sheet ol {
+  padding-left: 20px;
+  display: grid;
+  gap: 12px;
+}
+.install-sheet p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.install-button {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top));
+  right: 16px;
+  background: var(--focus);
+  color: var(--ground);
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  background: var(--ground);
+  padding: 8px 0;
+  flex-shrink: 0;
+  max-height: calc(var(--app-height, 100dvh) - 90px);
+  overflow-y: auto;
+}
+.composer textarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  max-height: 20dvh;
+  font: inherit;
+  background: var(--surface);
+  color: var(--text);
+}
+.composer small { display: block; }
+.key-row { display: flex; overflow-x: auto; gap: 4px; }
+.key-row button { flex-shrink: 0; min-width: 42px; min-height: 44px; padding: 6px; }
+
+.content:has(.terminal-scroll) { display: flex; flex-direction: column; overflow: hidden; }
+.content:has(.terminal-scroll) .terminal-scroll { flex: 1; min-height: 0; }
+.content:has(.terminal-scroll) .terminal-controls { flex-shrink: 0; }
+body[data-composing="true"][data-keyboard="true"] .tabbar,
+body[data-composing="true"][data-keyboard="true"] .terminal-controls,
+body[data-composing="true"][data-keyboard="true"] .session-title .metadata,
+body[data-composing="true"][data-keyboard="true"] .session-title .pill { display: none; }
+body[data-composing="true"][data-keyboard="true"] .page-header { padding: 4px 12px; }
+body[data-composing="true"][data-keyboard="true"] .composer textarea { min-height: 42px; max-height: 15dvh; }
+
+.conversation { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; overflow-anchor: none; }
+.conversation[hidden], .terminal-scroll[hidden] { display: none; }
+.conversation-message { max-width: 92%; margin: 0 auto 14px 0; padding: 12px; border-radius: 12px; background: #252422; }
+.conversation-message.user { margin-left: auto; margin-right: 0; background: #303c38; }
+.conversation-message h3 { font-size: 12px; opacity: .65; margin: 0 0 8px; }
+.conversation-message p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.tool-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; padding-top: 8px; }
+.tool-line.error { color: #f19a92; }

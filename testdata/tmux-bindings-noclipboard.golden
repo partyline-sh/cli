@@ -1,0 +1,215 @@
+set -s extended-keys on
+set -as terminal-features "xterm*:extkeys"
+set -g mouse on
+bind -T copy-mode MouseDragEnd1Pane send -X copy-selection-no-clear \; run-shell -b 'PTLN tmux --copied'
+bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-selection-no-clear \; run-shell -b 'PTLN tmux --copied'
+bind -T copy-mode MouseDown1Pane { select-pane; send -X clear-selection }
+bind -T copy-mode-vi MouseDown1Pane { select-pane; send -X clear-selection }
+bind -T copy-mode MouseUp1Pane { send -X cancel }
+bind -T copy-mode-vi MouseUp1Pane { send -X cancel }
+bind -n WheelUpPane if -F '#{?#{alternate_on},#{mouse_any_flag},0}' { send -M } { copy-mode -e; send -M }
+bind -T copy-mode '!' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '!' }
+bind -T copy-mode '"' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '"' }
+bind -T copy-mode '#' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '#' }
+bind -T copy-mode '$' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '$' }
+bind -T copy-mode '%' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '%' }
+bind -T copy-mode '&' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '&' }
+bind -T copy-mode "'" { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- "'" }
+bind -T copy-mode '(' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '(' }
+bind -T copy-mode ')' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ')' }
+bind -T copy-mode '*' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '*' }
+bind -T copy-mode '+' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '+' }
+bind -T copy-mode ',' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ',' }
+bind -T copy-mode '-' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '-' }
+bind -T copy-mode '.' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '.' }
+bind -T copy-mode '/' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '/' }
+bind -T copy-mode '0' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '0' }
+bind -T copy-mode '1' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '1' }
+bind -T copy-mode '2' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '2' }
+bind -T copy-mode '3' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '3' }
+bind -T copy-mode '4' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '4' }
+bind -T copy-mode '5' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '5' }
+bind -T copy-mode '6' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '6' }
+bind -T copy-mode '7' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '7' }
+bind -T copy-mode '8' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '8' }
+bind -T copy-mode '9' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '9' }
+bind -T copy-mode ':' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ':' }
+bind -T copy-mode ';' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ';' }
+bind -T copy-mode '<' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '<' }
+bind -T copy-mode '=' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '=' }
+bind -T copy-mode '>' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '>' }
+bind -T copy-mode '?' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '?' }
+bind -T copy-mode '@' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '@' }
+bind -T copy-mode 'A' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'A' }
+bind -T copy-mode 'B' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'B' }
+bind -T copy-mode 'C' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'C' }
+bind -T copy-mode 'D' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'D' }
+bind -T copy-mode 'E' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'E' }
+bind -T copy-mode 'F' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'F' }
+bind -T copy-mode 'G' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'G' }
+bind -T copy-mode 'H' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'H' }
+bind -T copy-mode 'I' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'I' }
+bind -T copy-mode 'J' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'J' }
+bind -T copy-mode 'K' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'K' }
+bind -T copy-mode 'L' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'L' }
+bind -T copy-mode 'M' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'M' }
+bind -T copy-mode 'N' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'N' }
+bind -T copy-mode 'O' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'O' }
+bind -T copy-mode 'P' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'P' }
+bind -T copy-mode 'Q' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'Q' }
+bind -T copy-mode 'R' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'R' }
+bind -T copy-mode 'S' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'S' }
+bind -T copy-mode 'T' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'T' }
+bind -T copy-mode 'U' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'U' }
+bind -T copy-mode 'V' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'V' }
+bind -T copy-mode 'W' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'W' }
+bind -T copy-mode 'X' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'X' }
+bind -T copy-mode 'Y' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'Y' }
+bind -T copy-mode 'Z' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'Z' }
+bind -T copy-mode '[' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '[' }
+bind -T copy-mode ']' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ']' }
+bind -T copy-mode '^' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '^' }
+bind -T copy-mode '_' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '_' }
+bind -T copy-mode '`' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '`' }
+bind -T copy-mode 'a' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'a' }
+bind -T copy-mode 'b' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'b' }
+bind -T copy-mode 'c' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'c' }
+bind -T copy-mode 'd' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'd' }
+bind -T copy-mode 'e' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'e' }
+bind -T copy-mode 'f' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'f' }
+bind -T copy-mode 'g' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'g' }
+bind -T copy-mode 'h' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'h' }
+bind -T copy-mode 'i' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'i' }
+bind -T copy-mode 'j' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'j' }
+bind -T copy-mode 'k' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'k' }
+bind -T copy-mode 'l' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'l' }
+bind -T copy-mode 'm' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'm' }
+bind -T copy-mode 'n' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'n' }
+bind -T copy-mode 'o' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'o' }
+bind -T copy-mode 'p' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'p' }
+bind -T copy-mode 'q' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'q' }
+bind -T copy-mode 'r' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'r' }
+bind -T copy-mode 's' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 's' }
+bind -T copy-mode 't' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 't' }
+bind -T copy-mode 'u' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'u' }
+bind -T copy-mode 'v' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'v' }
+bind -T copy-mode 'w' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'w' }
+bind -T copy-mode 'x' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'x' }
+bind -T copy-mode 'y' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'y' }
+bind -T copy-mode 'z' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'z' }
+bind -T copy-mode '{' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '{' }
+bind -T copy-mode '|' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '|' }
+bind -T copy-mode '}' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '}' }
+bind -T copy-mode '~' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '~' }
+bind -T copy-mode Space { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ' ' }
+bind -T copy-mode BSpace { if -F '#{pane_in_mode}' { send -X cancel }; send-keys BSpace }
+bind -T copy-mode-vi '!' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '!' }
+bind -T copy-mode-vi '"' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '"' }
+bind -T copy-mode-vi '#' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '#' }
+bind -T copy-mode-vi '$' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '$' }
+bind -T copy-mode-vi '%' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '%' }
+bind -T copy-mode-vi '&' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '&' }
+bind -T copy-mode-vi "'" { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- "'" }
+bind -T copy-mode-vi '(' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '(' }
+bind -T copy-mode-vi ')' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ')' }
+bind -T copy-mode-vi '*' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '*' }
+bind -T copy-mode-vi '+' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '+' }
+bind -T copy-mode-vi ',' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ',' }
+bind -T copy-mode-vi '-' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '-' }
+bind -T copy-mode-vi '.' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '.' }
+bind -T copy-mode-vi '/' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '/' }
+bind -T copy-mode-vi '0' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '0' }
+bind -T copy-mode-vi '1' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '1' }
+bind -T copy-mode-vi '2' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '2' }
+bind -T copy-mode-vi '3' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '3' }
+bind -T copy-mode-vi '4' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '4' }
+bind -T copy-mode-vi '5' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '5' }
+bind -T copy-mode-vi '6' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '6' }
+bind -T copy-mode-vi '7' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '7' }
+bind -T copy-mode-vi '8' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '8' }
+bind -T copy-mode-vi '9' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '9' }
+bind -T copy-mode-vi ':' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ':' }
+bind -T copy-mode-vi ';' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ';' }
+bind -T copy-mode-vi '<' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '<' }
+bind -T copy-mode-vi '=' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '=' }
+bind -T copy-mode-vi '>' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '>' }
+bind -T copy-mode-vi '?' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '?' }
+bind -T copy-mode-vi '@' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '@' }
+bind -T copy-mode-vi 'A' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'A' }
+bind -T copy-mode-vi 'B' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'B' }
+bind -T copy-mode-vi 'C' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'C' }
+bind -T copy-mode-vi 'D' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'D' }
+bind -T copy-mode-vi 'E' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'E' }
+bind -T copy-mode-vi 'F' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'F' }
+bind -T copy-mode-vi 'G' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'G' }
+bind -T copy-mode-vi 'H' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'H' }
+bind -T copy-mode-vi 'I' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'I' }
+bind -T copy-mode-vi 'J' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'J' }
+bind -T copy-mode-vi 'K' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'K' }
+bind -T copy-mode-vi 'L' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'L' }
+bind -T copy-mode-vi 'M' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'M' }
+bind -T copy-mode-vi 'N' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'N' }
+bind -T copy-mode-vi 'O' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'O' }
+bind -T copy-mode-vi 'P' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'P' }
+bind -T copy-mode-vi 'Q' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'Q' }
+bind -T copy-mode-vi 'R' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'R' }
+bind -T copy-mode-vi 'S' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'S' }
+bind -T copy-mode-vi 'T' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'T' }
+bind -T copy-mode-vi 'U' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'U' }
+bind -T copy-mode-vi 'V' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'V' }
+bind -T copy-mode-vi 'W' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'W' }
+bind -T copy-mode-vi 'X' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'X' }
+bind -T copy-mode-vi 'Y' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'Y' }
+bind -T copy-mode-vi 'Z' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'Z' }
+bind -T copy-mode-vi '[' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '[' }
+bind -T copy-mode-vi ']' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ']' }
+bind -T copy-mode-vi '^' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '^' }
+bind -T copy-mode-vi '_' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '_' }
+bind -T copy-mode-vi '`' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '`' }
+bind -T copy-mode-vi 'a' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'a' }
+bind -T copy-mode-vi 'b' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'b' }
+bind -T copy-mode-vi 'c' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'c' }
+bind -T copy-mode-vi 'd' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'd' }
+bind -T copy-mode-vi 'e' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'e' }
+bind -T copy-mode-vi 'f' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'f' }
+bind -T copy-mode-vi 'g' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'g' }
+bind -T copy-mode-vi 'h' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'h' }
+bind -T copy-mode-vi 'i' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'i' }
+bind -T copy-mode-vi 'j' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'j' }
+bind -T copy-mode-vi 'k' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'k' }
+bind -T copy-mode-vi 'l' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'l' }
+bind -T copy-mode-vi 'm' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'm' }
+bind -T copy-mode-vi 'n' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'n' }
+bind -T copy-mode-vi 'o' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'o' }
+bind -T copy-mode-vi 'p' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'p' }
+bind -T copy-mode-vi 'q' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'q' }
+bind -T copy-mode-vi 'r' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'r' }
+bind -T copy-mode-vi 's' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 's' }
+bind -T copy-mode-vi 't' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 't' }
+bind -T copy-mode-vi 'u' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'u' }
+bind -T copy-mode-vi 'v' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'v' }
+bind -T copy-mode-vi 'w' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'w' }
+bind -T copy-mode-vi 'x' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'x' }
+bind -T copy-mode-vi 'y' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'y' }
+bind -T copy-mode-vi 'z' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- 'z' }
+bind -T copy-mode-vi '{' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '{' }
+bind -T copy-mode-vi '|' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '|' }
+bind -T copy-mode-vi '}' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '}' }
+bind -T copy-mode-vi '~' { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- '~' }
+bind -T copy-mode-vi Space { if -F '#{pane_in_mode}' { send -X cancel }; send-keys -l -- ' ' }
+bind -T copy-mode-vi BSpace { if -F '#{pane_in_mode}' { send -X cancel }; send-keys BSpace }
+set -g prefix None
+bind -n 'C-\' run-shell 'PTLN tmux --menu'
+bind -n M-1 select-window -t 1
+bind -n M-2 select-window -t 2
+bind -n M-3 select-window -t 3
+bind -n M-4 select-window -t 4
+bind -n M-5 select-window -t 5
+bind -n M-6 select-window -t 6
+bind -n M-7 select-window -t 7
+bind -n M-8 select-window -t 8
+bind -n M-9 select-window -t 9
+set-hook -g client-detached 'run-shell '\''PTLN tmux --detached'\'''
+set-hook -g window-unlinked 'run-shell '\''PTLN tmux --save-workspace'\'''
+set-hook -g session-window-changed 'run-shell -b '\''PTLN tmux --contractors-seen #{window_id}'\'''
+bind -n MouseDown1Status if -F '#{m:window,#{mouse_status_range}}' { select-window -t = } { run-shell -b 'PTLN tmux --contractor-click #{mouse_status_range}' }

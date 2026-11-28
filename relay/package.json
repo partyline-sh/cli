@@ -1,0 +1,34 @@
+{
+  "name": "partyline-mobile-relay",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run && npm run test:shell",
+    "test:shell": "npm run build:pwa && node --test scripts/shell.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "types": "wrangler types --include-runtime=false --strict-vars=false",
+    "build:pwa": "rm -rf dist && esbuild src/pairing.ts src/session.ts src/app.ts --bundle --format=esm --outdir=dist && cp public/* dist/ && node scripts/version-shell.mjs",
+    "test:pwa": "npm run build:pwa && PLAYWRIGHT_BROWSERS_PATH=0 playwright test",
+    "test:channel": "npm run build:pwa && node e2e/channel-smoke.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.5.41",
+    "@cloudflare/workers-types": "4.20260529.1",
+    "@playwright/test": "1.64.1",
+    "@types/ws": "8.18.1",
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3",
+    "vitest": "2.1.9",
+    "wrangler": "4.95.0",
+    "ws": "8.18.3"
+  },
+  "dependencies": {
+    "@noble/ciphers": "1.3.0",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "@xterm/xterm": "5.5.0",
+    "fzstd": "0.1.1",
+    "jsqr": "1.4.0"
+  }
+}
