@@ -1,0 +1,27 @@
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, expect, it, vi } from 'vitest';
+import { TerminalHistoryButton } from '../src/ui/TerminalHistoryButton';
+const f = vi.hoisted(() => ({ read: vi.fn(), dismiss: vi.fn() }));
+vi.mock('../src/runtime', () => ({ usePartyline: () => ({ computers: [{ id: 'pc', connection: 'connected', capabilities: ['terminal_history'] }], readTerminalHistory: f.read }) }));
+vi.mock('react-native', () => ({ Keyboard: { dismiss: f.dismiss }, Platform: { select: () => 'monospace' }, Pressable: 'Pressable', Modal: 'Modal', Text: 'Text', View: 'View', StyleSheet: { create: (s: unknown) => s } }));
+vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
+vi.mock('../src/ui/Terminal', () => ({ Terminal: ({ ansi }: { ansi: string }) => createElement('ReadOnlyHistory', {}, ansi) }));
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+let tree: ReactTestRenderer;
+afterEach(async () => { await act(async () => tree?.unmount()); vi.clearAllMocks(); });
+it('hides the terminal keyboard, shows loading, and displays retained output without sending input', async () => {
+ let resolve!: (data: unknown) => void;
+ f.read.mockImplementation(() => new Promise(done => { resolve = done; }));
+ const blur = vi.fn();
+ await act(async () => { tree = create(createElement(TerminalHistoryButton, { computer: 'pc', pane: '%4', onOpen: blur })); });
+ await act(async () => tree.root.findByProps({ accessibilityLabel: 'View terminal history' }).props.onPress());
+ expect(blur).toHaveBeenCalledOnce(); expect(f.dismiss).toHaveBeenCalledOnce();
+ expect(f.read).toHaveBeenCalledExactlyOnceWith('pc', '%4');
+ expect(JSON.stringify(tree.toJSON())).toContain('Loading terminal history');
+ await act(async () => resolve({ ansi: 'older command output', columns: 80, limited: false, alternate: false }));
+ expect(JSON.stringify(tree.toJSON())).toContain('older command output');
+ expect(JSON.stringify(tree.toJSON())).not.toContain('Loading terminal history');
+ await act(async () => tree.root.findByProps({ accessibilityLabel: 'Back to live terminal' }).props.onPress());
+ expect(tree.root.findAllByType('Modal' as never)).toHaveLength(0);
+});

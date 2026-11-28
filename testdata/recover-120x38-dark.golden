@@ -1,0 +1,14 @@
+☎  Recover session
+
+its working directory was removed:
+/work/gone
+
+the conversation survived — only the directory is gone.
+
+recorded remote: https://example.org/repo
+1  clone & resume  git clone the recorded remote
+d  point to new location…  you MOVED the dir — resume from its new path
+r  clone a remote…  paste a git URL to clone
+e  empty dir & resume  recreate the directory empty
+
+q / esc / enter cancel
