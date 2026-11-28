@@ -1,0 +1,39 @@
+# Render blueprint for partyline.sh — documentation and marketing.
+#
+# WHY RENDER, AND WHY FREE. There is no hosted application any more: the product is the image a
+# self-hoster runs, and this site is docs plus marketing with no database, no identity provider and
+# no sign-in behind it. That is a static-shaped workload, so it does not justify a Hetzner box.
+#
+# THE FREE TIER SPINS DOWN after roughly fifteen minutes of no traffic, and a cold start costs the
+# next visitor about a minute. A cron on monolith curls the site every ten minutes to keep it warm
+# (see docs — `ptln trigger` is not involved; it is a plain curl in crontab).
+#
+# PARTYLINE_MARKETING_ONLY=1 is what closes the app half of this Next app (web/src/lib/marketing-only.ts).
+# It is the one setting that must never be removed here: without it this deployment would serve
+# sign-in and dashboard routes against a database that does not exist.
+services:
+  - type: web
+    name: partyline-site
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: web
+    # --include=dev is load-bearing. The build needs @tailwindcss/postcss, tailwindcss and
+    # typescript, all of which are devDependencies, and npm omits those whenever NODE_ENV is
+    # production. Render's first build failed on exactly that:
+    #   Cannot find module '@tailwindcss/postcss'
+    # NODE_ENV is deliberately NOT set here either — `next start` sets it itself, and setting it
+    # in the blueprint is what made npm skip the build's own toolchain.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PARTYLINE_MARKETING_ONLY
+        value: "1"
+      # The origin the marketing pages link to and the docs use in examples.
+      - key: SITE_URL
+        value: https://partyline.sh
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://partyline.sh
